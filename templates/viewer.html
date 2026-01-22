@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d0d0d">
+  <title>ComfyUI Viewer</title>
+  <link rel="stylesheet" href="/static/css/execution-block.css">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       Design System - Shared with Settings Page
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root {
+      /* Colors - Modern dark theme */
+      --bg-primary: #0d0d0d;
+      --bg-secondary: #161616;
+      --bg-tertiary: #1c1c1c;
+      --bg-elevated: #222222;
+      --bg-hover: #2a2a2a;
+
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-default: rgba(255, 255, 255, 0.1);
+      --border-strong: rgba(255, 255, 255, 0.15);
+
+      --text-primary: #f5f5f5;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --text-tertiary: rgba(255, 255, 255, 0.5);
+      --text-quaternary: rgba(255, 255, 255, 0.35);
+
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --accent-subtle: rgba(99, 102, 241, 0.15);
+
+      --success: #22c55e;
+      --success-subtle: rgba(34, 197, 94, 0.15);
+      --warning: #f59e0b;
+      --error: #ef4444;
+
+      /* Typography */
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+      /* Transitions */
+      --transition-fast: 0.1s ease;
+      --transition-normal: 0.2s ease;
+      --transition-slow: 0.3s ease;
+
+      /* Radius */
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-primary);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Main Viewer Container
+       ═══════════════════════════════════════════════════════════════ */
+
+    .viewer {
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .main-image {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      transition: opacity var(--transition-normal);
+    }
+
+    .main-image.loading {
+      opacity: 0.5;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       States (Loading, Empty)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .state-container {
+      color: var(--text-primary);
+      text-align: center;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .state-container.active {
+      display: flex;
+    }
+
+    .state-container .state-icon {
+      font-size: 48px;
+      opacity: 0.6;
+    }
+
+    .state-container .state-text {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 2px solid var(--border-default);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Controls Container (Legacy - being replaced by visibility system)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .controls {
+      position: fixed;
+      opacity: 0;
+      visibility: hidden;
+      transition: all var(--transition-slow);
+      z-index: 100;
+    }
+
+    .controls.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       UI Visibility System - Configurable element visibility
+       States: "visible" (always), "hidden" (on interact), "off" (never)
+
+       Elements reflow when others are hidden/off - no empty gaps.
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* Visible - always shown */
+    [data-visibility="visible"] {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+
+    /* Hidden - completely removed from layout until interaction */
+    [data-visibility="hidden"] {
+      display: none !important;
+    }
+
+    /* When controls visible, show hidden elements */
+    body.controls-visible [data-visibility="hidden"] {
+      display: flex !important;
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Nav buttons are not flex containers */
+    body.controls-visible .nav-btn[data-visibility="hidden"] {
+      display: flex !important;
+    }
+
+    /* Position badge is inline element */
+    body.controls-visible .position-badge[data-visibility="hidden"] {
+      display: block !important;
+    }
+
+    /* Off - never shown */
+    [data-visibility="off"] {
+      display: none !important;
+    }
+
+    /* Special handling for overlays with content */
+    .title-overlay[data-visibility="visible"].visible,
+    .data-overlay[data-visibility="visible"].has-content {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Navigation Buttons - KEEP ORIGINAL STYLE
+       ═══════════════════════════════════════════════════════════════ */
+
+    .nav-btn {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      padding: 0;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.3);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all var(--transition-normal);
+      z-index: 400;  /* Priority: below top-right (500), above corners */
+    }
+
+    .nav-btn:hover {
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.6);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .nav-prev { left: 20px; }
+    .nav-next { right: 20px; }
+
+    /* Hide nav buttons at boundaries */
+    .nav-btn.at-boundary {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Navigation Zones - Invisible click areas
+       ═══════════════════════════════════════════════════════════════ */
+
+    .nav-zone {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 450;  /* Above nav buttons (400), below top-right (500) */
+      /* Invisible by default */
+      background: transparent;
+      /* Touch support */
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .nav-zone-prev { left: 20px; }
+    .nav-zone-next { right: 20px; }
+
+    /* Hide zones at boundaries */
+    .nav-zone.at-boundary {
+      pointer-events: none !important;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       UI Buttons - New Design System
+       ═══════════════════════════════════════════════════════════════ */
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all var(--transition-fast);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    /* Button States */
+    .btn.flagged {
+      border-color: var(--error);
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    .btn.liked {
+      border-color: var(--success);
+      background: rgba(34, 197, 94, 0.2);
+    }
+
+    .btn.disliked {
+      border-color: var(--error);
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Corner Layout System
+       Z-index priority (highest to lowest):
+         500 - Top-right (settings, always accessible)
+         400 - Navigation buttons (prev/next)
+         300 - Top-left (action buttons)
+         200 - Bottom-left (execution controls)
+         100 - Bottom-right (overlays)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .corner-top-left {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      left: max(16px, env(safe-area-inset-left));
+      display: flex;
+      gap: 8px;
+      z-index: 300;
+    }
+
+    .corner-top-right {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 500;
+    }
+
+    .corner-bottom-left {
+      position: fixed;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      left: max(16px, env(safe-area-inset-left));
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 200;
+    }
+
+    .corner-bottom-right {
+      position: fixed;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      z-index: 100;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Page Swap Button
+       ═══════════════════════════════════════════════════════════════ */
+
+    .page-swap-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-default);
+      color: var(--text-primary);
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all var(--transition-fast);
+      text-decoration: none;
+      font-size: 18px;
+    }
+
+    .page-swap-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Position Badge (Top-Right)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .position-badge {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      padding: 8px 14px;
+      border-radius: var(--radius-lg);
+      font-size: 12px;
+      font-weight: 500;
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-default);
+      font-family: var(--font-mono);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Info Overlay (Bottom-Right, above char_str)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .info-overlay {
+      background: rgba(0,0,0,0.75);
+      color: var(--text-secondary);
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      font-family: var(--font-mono);
+      display: none;
+    }
+
+    .info-overlay.visible {
+      display: block;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Overlay Stack - Container that sets width based on title
+       ═══════════════════════════════════════════════════════════════ */
+
+    .overlay-stack {
+      display: flex;
+      flex-direction: column;  /* Data on top, title on bottom */
+      align-items: flex-end;  /* Right-align children independently */
+      gap: 8px;  /* Space between data and title boxes */
+    }
+
+    /* Hide stack when no content */
+    .overlay-stack:not(.has-content) {
+      display: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Data Overlay - Fades with controls, separate box above title
+       ═══════════════════════════════════════════════════════════════ */
+
+    .data-overlay {
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 10px 16px;
+      padding-top: 28px;  /* Extra space for absolute-positioned label */
+      border-radius: 10px;  /* Fully rounded - separate box */
+      font-size: 12px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--transition-slow), visibility var(--transition-slow);
+      /* Fixed width, matches title's minimum */
+      width: 250px;
+      min-height: 60px;
+      box-sizing: border-box;
+      position: relative;  /* For absolute label positioning */
+    }
+
+    /* Show data when has content AND controls are visible */
+    .data-overlay.has-content {
+      /* Will be shown/hidden by body.controls-visible */
+    }
+
+    body.controls-visible .data-overlay.has-content {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Hide completely when no content */
+    .data-overlay:not(.has-content) {
+      display: none;
+    }
+
+    .data-overlay .data-label {
+      position: absolute;
+      top: 8px;
+      left: 12px;
+      color: #888;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .data-overlay .data-text {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      text-align: center;
+      display: block;
+      width: 100%;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Title Overlay - Always visible when has content, sets stack width
+       ═══════════════════════════════════════════════════════════════ */
+
+    .title-overlay {
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 12px 20px;
+      padding-top: 32px;  /* Extra space for absolute-positioned label */
+      border-radius: 10px;  /* Fully rounded - separate box */
+      font-size: 14px;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      display: none;  /* Hidden by default */
+      white-space: nowrap;
+      min-width: 250px;
+      min-height: 80px;
+      box-sizing: border-box;
+      position: relative;  /* For absolute label positioning */
+    }
+
+    .title-overlay.visible {
+      display: block;
+    }
+
+    .title-overlay .title-label {
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      color: #888;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .title-overlay .title-text {
+      color: #4fc3f7;
+      font-weight: 600;
+      font-size: 28px;
+      line-height: 1.2;
+      white-space: nowrap;
+      text-align: center;
+      display: block;
+      width: 100%;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Progress Bar
+       ═══════════════════════════════════════════════════════════════ */
+
+    .progress-container {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--border-subtle);
+      opacity: 0;
+      transition: opacity var(--transition-slow);
+    }
+
+    .progress-container.active {
+      opacity: 1;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+      width: 0%;
+      transition: width var(--transition-slow);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Gallery Settings Modal
+       ═══════════════════════════════════════════════════════════════ */
+
+    .gallery-settings-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--transition-normal), visibility var(--transition-normal);
+    }
+
+    .gallery-settings-modal.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xl);
+      width: 90%;
+      max-width: 480px;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.95);
+      transition: transform var(--transition-normal);
+    }
+
+    .gallery-settings-modal.open .modal-content {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
+    }
+
+    .modal-close:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .settings-section-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-tertiary);
+      padding: 16px 0 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .settings-section-header:first-child {
+      padding-top: 0;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      padding-left: 12px;
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-row > label {
+      font-size: 14px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 4px;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .radio-group label:hover:not(.disabled) {
+      background: var(--bg-hover);
+      border-color: var(--border-default);
+    }
+
+    .radio-group label:has(input:checked) {
+      background: var(--accent-subtle);
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .radio-group label.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .radio-group input[type="radio"] {
+      display: none;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-subtle);
+      gap: 12px;
+    }
+
+    .modal-footer .btn {
+      flex: 1;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Responsive
+       ═══════════════════════════════════════════════════════════════ */
+
+    @media (max-width: 768px) {
+      .nav-btn {
+        width: 52px;
+        height: 52px;
+        font-size: 22px;
+      }
+
+      .nav-zone {
+        width: 80px;
+      }
+
+      .btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
+      .corner-top-left {
+        gap: 6px;
+      }
+
+      .corner-bottom-left {
+        gap: 6px;
+      }
+
+      .page-swap-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="viewer" id="viewer">
+    <!-- Loading State -->
+    <div class="state-container active" id="loadingState">
+      <div class="spinner"></div>
+      <div class="state-text">Loading...</div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="state-container" id="emptyState">
+      <div class="state-icon">🎨</div>
+      <div class="state-text">No images yet</div>
+      <a href="/library" class="btn btn-primary">Go to Library</a>
+    </div>
+
+    <!-- Main Image -->
+    <img class="main-image" id="mainImage" style="display: none" alt="">
+  </div>
+
+  <!-- Navigation Zones (invisible click areas) -->
+  <div class="nav-zone nav-zone-prev" id="navZonePrev"></div>
+  <div class="nav-zone nav-zone-next" id="navZoneNext"></div>
+
+  <!-- Navigation Buttons -->
+  <button class="nav-btn nav-prev" id="prevBtn" data-visibility="hidden">‹</button>
+  <button class="nav-btn nav-next" id="nextBtn" data-visibility="hidden">›</button>
+
+  <!-- Top-Left: Page Controls -->
+  <div class="corner-top-left" id="topLeft" data-visibility="hidden">
+    <button class="btn" id="quickSaveBtn">💾 Save</button>
+    <button class="btn" id="flagBtn">🚩 Flag</button>
+    <button class="btn" id="likeBtn">👍</button>
+    <button class="btn" id="dislikeBtn">👎</button>
+  </div>
+
+  <!-- Top-Right: Navigation -->
+  <div class="corner-top-right" id="topRight">
+    <div class="position-badge" id="positionBadge" data-visibility="hidden">1 / 1</div>
+    <button class="page-swap-btn" id="gallerySettingsBtn" data-visibility="visible" title="Gallery Settings">≡</button>
+    <a href="/library" class="page-swap-btn" id="libraryLink" data-visibility="visible" title="Library">📚</a>
+  </div>
+
+  <!-- Bottom-Left: Execution Block (built by JS) -->
+  <div class="corner-bottom-left" id="bottomLeft" data-visibility="hidden"></div>
+
+  <!-- Bottom-Right: Image Info -->
+  <div class="corner-bottom-right" id="bottomRight">
+    <!-- Stacked overlays share width -->
+    <div class="overlay-stack" id="overlayStack">
+      <!-- Data Overlay - Fades with controls -->
+      <div class="data-overlay" id="dataOverlay" data-visibility="hidden">
+        <div class="data-label" id="dataLabel"></div>
+        <div class="data-text" id="dataText"></div>
+      </div>
+      <!-- Title Overlay - Always visible when has content -->
+      <div class="title-overlay" id="titleOverlay" data-visibility="visible">
+        <div class="title-label" id="titleLabel"></div>
+        <div class="title-text" id="titleText"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-container" id="progressContainer" data-visibility="visible">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- Gallery Settings Modal -->
+  <div class="gallery-settings-modal" id="gallerySettingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Display Settings</h3>
+        <button class="modal-close" id="modalClose">×</button>
+      </div>
+      <div class="modal-body" id="settingsForm">
+        <!-- Generated by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="resetDefaults">Reset Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/static/js/state.js"></script>
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/settings-modal.js"></script>
+  <script src="/static/js/execution-block.js"></script>
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // UI Visibility Settings - Configurable element visibility
+    // States: "visible" (always), "hidden" (on interact), "off" (never)
+    // ─────────────────────────────────────────────────────────────
+
+    const VIEWER_SETTINGS_SECTIONS = {
+      'Top Right': ['position_badge', 'gallery_settings_button', 'library_link'],
+      'Top Left': ['action_buttons'],
+      'Bottom Right': ['title_overlay', 'data_overlay'],
+      'Bottom Left': ['execution_block'],
+      'Navigation': ['nav_buttons'],
+      'Other': ['progress_bar']
+    };
+
+    const VIEWER_SETTINGS_ELEMENTS = {
+      nav_buttons: {
+        type: 'visibility',
+        selector: '.nav-btn',
+        default: 'hidden',
+        canTurnOff: true,
+        label: 'Navigation Arrows'
+      },
+      action_buttons: {
+        type: 'visibility',
+        selector: '#topLeft',
+        default: 'hidden',
+        canTurnOff: true,
+        label: 'Action Buttons'
+      },
+      position_badge: {
+        type: 'visibility',
+        selector: '.position-badge',
+        default: 'hidden',
+        canTurnOff: true,
+        label: 'Position Badge'
+      },
+      gallery_settings_button: {
+        type: 'visibility',
+        selector: '#gallerySettingsBtn',
+        default: 'visible',
+        canTurnOff: false,
+        label: 'Settings Button'
+      },
+      library_link: {
+        type: 'visibility',
+        selector: '#libraryLink',
+        default: 'visible',
+        canTurnOff: false,
+        label: 'Library Link'
+      },
+      execution_block: {
+        type: 'visibility',
+        selector: '#bottomLeft',
+        default: 'hidden',
+        canTurnOff: true,
+        label: 'Execution Controls'
+      },
+      title_overlay: {
+        type: 'visibility',
+        selector: '.title-overlay',
+        default: 'visible',
+        canTurnOff: true,
+        label: 'Title Overlay'
+      },
+      data_overlay: {
+        type: 'visibility',
+        selector: '.data-overlay',
+        default: 'hidden',
+        canTurnOff: true,
+        label: 'Data Overlay'
+      },
+      progress_bar: {
+        type: 'visibility',
+        selector: '.progress-container',
+        default: 'hidden',
+        canTurnOff: true,
+        label: 'Progress Bar'
+      }
+    };
+
+    // Apply visibility setting to DOM elements
+    function applyVisibilitySetting(elementId, visibility) {
+      const config = VIEWER_SETTINGS_ELEMENTS[elementId];
+      if (!config || !config.selector) return;
+
+      const elements = document.querySelectorAll(config.selector);
+      elements.forEach(el => {
+        el.dataset.visibility = visibility;
+        el.classList.remove('controls');
+      });
+    }
+
+    // Initialize shared settings modal for Viewer
+    let viewerSettings;
+    document.addEventListener('DOMContentLoaded', () => {
+      viewerSettings = new SettingsModal({
+        modalId: 'gallerySettingsModal',
+        formId: 'settingsForm',
+        sections: VIEWER_SETTINGS_SECTIONS,
+        elements: VIEWER_SETTINGS_ELEMENTS,
+        storageKey: 'comfy-viewer-display',
+        apiEndpoint: '/api/gallery-settings',
+        onSettingChange: (key, value) => {
+          applyVisibilitySetting(key, value);
+        }
+      });
+      viewerSettings.init();
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // Gallery Viewer
+    // ─────────────────────────────────────────────────────────────
+
+    const gallery = {
+      images: [],
+      currentIndex: 0,
+      controlsVisible: false,
+      autoHideTimer: null,
+      preloadedImages: new Set(),  // Track preloaded image URLs
+      PRELOAD_RADIUS: 3,           // Preload ±3 images around current
+
+      async init() {
+        // Initialize execution block (shared component)
+        this.initExecutionBlock();
+
+        // Connect to WebSocket for real-time updates
+        appState.connect();
+
+        // Subscribe to state changes
+        appState.subscribe('image_added', () => this.onImageAdded());
+        appState.subscribe('generation_started', () => this.onGenerationStarted());
+        appState.subscribe('generation_progress', (d) => this.onProgress(d));
+        appState.subscribe('generation_complete', () => this.onGenerationComplete());
+        appState.subscribe('generation_batch_complete', () => this.onBatchComplete());
+
+        // Setup event listeners
+        this.setupEvents();
+
+        // Load ALL image metadata
+        await this.loadAllImages();
+
+        // Check for URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestedImage = urlParams.get('image');
+
+        if (requestedImage) {
+          window.history.replaceState({}, '', '/');
+          this.goToImage(requestedImage);
+        } else {
+          this.showImage(0);
+        }
+      },
+
+      async loadAllImages() {
+        try {
+          const { images, total } = await api.getImages(0, 10000);
+          this.images = images;
+
+          if (images.length === 0) {
+            this.showEmpty();
+          }
+        } catch (e) {
+          console.error('Failed to load images:', e);
+          this.showEmpty();
+        }
+      },
+
+      goToImage(filename) {
+        const index = this.images.findIndex(img => img.filename === filename);
+        if (index >= 0) {
+          this.showImage(index);
+        } else {
+          this.showImage(0);
+        }
+      },
+
+      showImage(index) {
+        if (index < 0 || index >= this.images.length) return;
+
+        this.currentIndex = index;
+        const img = document.getElementById('mainImage');
+        const image = this.images[index];
+        if (!image || !image.filename) return;
+
+        const imageUrl = `/images/${image.filename}`;
+
+        if (img.src.endsWith(image.filename)) {
+          return;
+        }
+
+        // Preload in background
+        const preloader = new Image();
+
+        preloader.onload = () => {
+          img.src = imageUrl;
+          img.style.display = 'block';
+        };
+
+        preloader.onerror = () => {
+          console.error('Failed to load image:', imageUrl);
+        };
+
+        preloader.src = imageUrl;
+
+        document.getElementById('loadingState').classList.remove('active');
+        document.getElementById('emptyState').classList.remove('active');
+
+        this.updateNavButtons();
+        this.updatePositionDisplay();
+        this.updateFlagButton(image);
+        this.updateRatingButtons(image);
+        this.updateCharOverlay(image);
+
+        // Preload adjacent images for smooth navigation
+        this.preloadAdjacent(index);
+      },
+
+      preloadAdjacent(centerIndex) {
+        // Preload images within PRELOAD_RADIUS in both directions
+        for (let offset = -this.PRELOAD_RADIUS; offset <= this.PRELOAD_RADIUS; offset++) {
+          if (offset === 0) continue; // Skip current image
+
+          const i = centerIndex + offset;
+          if (i < 0 || i >= this.images.length) continue;
+
+          const image = this.images[i];
+          if (!image?.filename) continue;
+
+          const url = `/images/${image.filename}`;
+
+          // Skip if already preloaded
+          if (this.preloadedImages.has(url)) continue;
+
+          // Preload in background
+          const preloader = new Image();
+          preloader.src = url;
+          this.preloadedImages.add(url);
+        }
+      },
+
+      showEmpty() {
+        document.getElementById('loadingState').classList.remove('active');
+        document.getElementById('emptyState').classList.add('active');
+        document.getElementById('mainImage').style.display = 'none';
+      },
+
+      next() {
+        if (this.currentIndex < this.images.length - 1) {
+          this.showImage(this.currentIndex + 1);
+          this.resetAutoHide();
+        }
+      },
+
+      prev() {
+        if (this.currentIndex > 0) {
+          this.showImage(this.currentIndex - 1);
+          this.resetAutoHide();
+        }
+      },
+
+      updateNavButtons() {
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const prevZone = document.getElementById('navZonePrev');
+        const nextZone = document.getElementById('navZoneNext');
+        const atStart = this.currentIndex === 0;
+        const atEnd = this.currentIndex >= this.images.length - 1;
+
+        prevBtn.disabled = atStart;
+        nextBtn.disabled = atEnd;
+
+        prevBtn.classList.toggle('at-boundary', atStart);
+        nextBtn.classList.toggle('at-boundary', atEnd);
+        prevZone.classList.toggle('at-boundary', atStart);
+        nextZone.classList.toggle('at-boundary', atEnd);
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Controls
+      // ─────────────────────────────────────────────────────────────
+
+      toggleControls() {
+        if (this.controlsVisible) {
+          this.hideControls();
+        } else {
+          this.showControls();
+        }
+      },
+
+      showControls() {
+        // New visibility system uses body.controls-visible to show on_interact elements
+        document.body.classList.add('controls-visible');
+        this.controlsVisible = true;
+        this.resetAutoHide();
+      },
+
+      hideControls() {
+        // New visibility system uses body.controls-visible to show on_interact elements
+        document.body.classList.remove('controls-visible');
+        this.controlsVisible = false;
+        clearTimeout(this.autoHideTimer);
+      },
+
+      resetAutoHide() {
+        clearTimeout(this.autoHideTimer);
+        this.autoHideTimer = setTimeout(() => this.hideControls(), 4000);
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Execution Block (shared component)
+      // ─────────────────────────────────────────────────────────────
+
+      execBlock: null,
+
+      initExecutionBlock() {
+        this.execBlock = new ExecutionBlock({
+          containerId: 'bottomLeft',
+          getWorkflowName: async () => {
+            // Get last-used workflow name
+            try {
+              const res = await fetch('/api/last-workflow');
+              const data = await res.json();
+              return data.workflow || 'No workflow';
+            } catch {
+              return 'No workflow';
+            }
+          },
+          getRunConfig: async () => {
+            // Get last-used workflow with saved inputs
+            const lastRes = await fetch('/api/last-workflow');
+            const lastData = await lastRes.json();
+
+            let workflow = lastData.workflow;
+            let inputs = lastData.inputs || {};
+
+            // Fallback: if no last workflow, get first available
+            if (!workflow) {
+              const res = await fetch('/api/conduit/workflows');
+              const data = await res.json();
+              if (data.workflows?.length > 0) {
+                workflow = data.workflows[0].name;
+                inputs = {};
+              }
+            }
+
+            return workflow ? { workflow, inputs } : null;
+          }
+        });
+        this.execBlock.init();
+      },
+
+      async quickSave() {
+        if (this.images.length === 0) return;
+
+        const btn = document.getElementById('quickSaveBtn');
+        const filename = this.images[this.currentIndex].filename;
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Saving...';
+
+        try {
+          await api.quickSave(filename);
+          btn.textContent = '✅ Saved!';
+        } catch (e) {
+          btn.textContent = '❌ Failed';
+        }
+
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '💾 Save';
+        }, 2000);
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Flag & Rating
+      // ─────────────────────────────────────────────────────────────
+
+      updateFlagButton(image) {
+        const btn = document.getElementById('flagBtn');
+        const isFlagged = image.flagged || false;
+        btn.classList.toggle('flagged', isFlagged);
+        btn.textContent = isFlagged ? '🚩 Flagged' : '🚩 Flag';
+      },
+
+      updateRatingButtons(image) {
+        const likeBtn = document.getElementById('likeBtn');
+        const dislikeBtn = document.getElementById('dislikeBtn');
+        const rating = image.rating || 0;
+
+        likeBtn.classList.toggle('liked', rating === 1);
+        likeBtn.textContent = rating === 1 ? '👍 Liked' : '👍';
+
+        dislikeBtn.classList.toggle('disliked', rating === -1);
+        dislikeBtn.textContent = rating === -1 ? '👎 Disliked' : '👎';
+      },
+
+      async toggleFlag() {
+        if (this.images.length === 0) return;
+
+        const btn = document.getElementById('flagBtn');
+        const image = this.images[this.currentIndex];
+        const filename = image.filename;
+
+        btn.disabled = true;
+
+        try {
+          const result = await api.toggleFlag(filename);
+          if (result.success) {
+            image.flagged = result.flagged;
+            this.updateFlagButton(image);
+          }
+        } catch (e) {
+          console.error('Flag failed:', e);
+        }
+
+        btn.disabled = false;
+      },
+
+      async rate(rating) {
+        if (this.images.length === 0) return;
+
+        const image = this.images[this.currentIndex];
+        const filename = image.filename;
+        const currentRating = image.rating || 0;
+        const newRating = currentRating === rating ? 0 : rating;
+
+        const likeBtn = document.getElementById('likeBtn');
+        const dislikeBtn = document.getElementById('dislikeBtn');
+        likeBtn.disabled = true;
+        dislikeBtn.disabled = true;
+
+        try {
+          const result = await api.setRating(filename, newRating);
+          if (result.success) {
+            image.rating = result.rating;
+            this.updateRatingButtons(image);
+          }
+        } catch (e) {
+          console.error('Rating failed:', e);
+        }
+
+        likeBtn.disabled = false;
+        dislikeBtn.disabled = false;
+      },
+
+      updateCharOverlay(image) {
+        const overlayStack = document.getElementById('overlayStack');
+        const titleOverlay = document.getElementById('titleOverlay');
+        const titleLabel = document.getElementById('titleLabel');
+        const titleText = document.getElementById('titleText');
+        const dataOverlay = document.getElementById('dataOverlay');
+        const dataLabel = document.getElementById('dataLabel');
+        const dataText = document.getElementById('dataText');
+
+        const hasTitle = image?.title?.value;
+        const hasData = image?.data?.value;
+
+        // Update title overlay (always visible when has content)
+        if (hasTitle) {
+          titleLabel.textContent = image.title.label || 'Title';
+          titleText.textContent = image.title.value;
+          titleOverlay.classList.add('visible');
+        } else {
+          titleOverlay.classList.remove('visible');
+        }
+
+        // Update data overlay (fades with controls)
+        if (hasData) {
+          dataLabel.textContent = image.data.label || 'Data';
+          dataText.textContent = image.data.value;
+          dataOverlay.classList.add('has-content');  // Shows the element
+        } else {
+          dataOverlay.classList.remove('has-content');  // Hides the element
+        }
+
+        // Show/hide the entire stack based on content
+        if (hasTitle || hasData) {
+          overlayStack.classList.add('has-content');
+        } else {
+          overlayStack.classList.remove('has-content');
+        }
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // State Updates
+      // ─────────────────────────────────────────────────────────────
+
+      onImageAdded() {
+        const newImage = appState.images[0];
+        if (newImage && (!this.images[0] || this.images[0].filename !== newImage.filename)) {
+          this.images.unshift(newImage);
+          this.currentIndex++;
+          this.updateNavButtons();
+        }
+        this.showImage(0);
+        // Check if ComfyUI is still busy
+        if (this.execBlock) this.execBlock.onImageReceived();
+      },
+
+      onGenerationStarted() {
+        if (this.execBlock) this.execBlock.onGenerationStarted();
+        document.getElementById('progressContainer').classList.add('active');
+      },
+
+      onProgress(data) {
+        const progress = data.progress || 0;
+        document.getElementById('progressBar').style.width = `${progress}%`;
+        if (this.execBlock) this.execBlock.onProgress(progress);
+      },
+
+      onGenerationComplete() {
+        const gen = appState.generation;
+        if (this.execBlock) this.execBlock.onGenerationComplete(gen.completed, gen.total);
+      },
+
+      onBatchComplete() {
+        document.getElementById('progressContainer').classList.remove('active');
+        document.getElementById('progressBar').style.width = '0%';
+        this.loadAllImages();
+      },
+
+      updatePositionDisplay() {
+        const badge = document.getElementById('positionBadge');
+        badge.textContent = `${this.currentIndex + 1} / ${this.images.length}`;
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Event Setup
+      // ─────────────────────────────────────────────────────────────
+
+      setupEvents() {
+        // Tap/click center to toggle controls
+        document.getElementById('viewer').addEventListener('click', (e) => {
+          if (!e.target.closest('.btn')) {
+            this.toggleControls();
+          }
+        });
+
+        // Mouse movement shows controls
+        document.addEventListener('mousemove', () => {
+          if (!this.controlsVisible) {
+            this.showControls();
+          }
+          this.resetAutoHide();
+        });
+
+        // Scroll wheel navigation
+        document.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          if (e.deltaY > 0) {
+            this.next();
+          } else if (e.deltaY < 0) {
+            this.prev();
+          }
+        }, { passive: false });
+
+        // Swipe navigation (touch)
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', (e) => {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+          const touchEndX = e.changedTouches[0].clientX;
+          const touchEndY = e.changedTouches[0].clientY;
+          const deltaX = touchEndX - touchStartX;
+          const deltaY = touchEndY - touchStartY;
+
+          if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+            if (deltaX > 0) {
+              this.prev();
+            } else {
+              this.next();
+            }
+          }
+        }, { passive: true });
+
+        // Navigation buttons
+        document.getElementById('prevBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.prev();
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.next();
+        });
+
+        // Navigation zones (invisible click areas)
+        document.getElementById('navZonePrev').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.prev();
+        });
+
+        document.getElementById('navZoneNext').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.next();
+        });
+
+        // Touch support for nav zones
+        document.getElementById('navZonePrev').addEventListener('touchend', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.prev();
+        });
+
+        document.getElementById('navZoneNext').addEventListener('touchend', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.next();
+        });
+
+        // Quick Save
+        document.getElementById('quickSaveBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.quickSave();
+        });
+
+        // Flag
+        document.getElementById('flagBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggleFlag();
+        });
+
+        // Like/Dislike
+        document.getElementById('likeBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.rate(1);
+        });
+
+        document.getElementById('dislikeBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.rate(-1);
+        });
+
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+          // Don't trigger shortcuts when typing in inputs
+          if (e.target.matches('input, textarea')) return;
+
+          // Close modal on Escape if open
+          if (e.key === 'Escape') {
+            const modal = document.getElementById('gallerySettingsModal');
+            if (modal.classList.contains('open')) {
+              this.closeSettingsModal();
+              return;
+            }
+          }
+
+          switch (e.key) {
+            case 'ArrowLeft': this.prev(); break;
+            case 'ArrowRight': this.next(); break;
+            case 'Escape': this.hideControls(); break;
+            case ' ': e.preventDefault(); this.toggleControls(); break;
+            case 'f': case 'F': this.toggleFlag(); break;
+            case 's': case 'S': this.quickSave(); break;
+            case 'l': case 'L': this.rate(1); break;
+            case 'd': case 'D': this.rate(-1); break;
+            case 'r': case 'R': if (this.execBlock) this.execBlock.run(); break;
+          }
+        });
+      }
+    };
+
+    // Initialize gallery (settings modal is initialized separately above)
+    document.addEventListener('DOMContentLoaded', () => gallery.init());
+  </script>
+</body>
+</html>

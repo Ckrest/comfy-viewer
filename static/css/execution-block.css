@@ -1,0 +1,100 @@
+/* ═══════════════════════════════════════════════════════════════
+   Execution Block - Shared Component
+   Unified generation controls used on both Viewer and Library pages
+
+   Layout:
+   ┌─────────────────────────────┐
+   │  ●   [  3  ] [▶ Run]        │  (dot + controls, or "unavailable")
+   └─────────────────────────────┘
+
+   Dot states: 🔴 unavailable, 🟢 ready, 🟡 busy
+   ═══════════════════════════════════════════════════════════════ */
+
+.execution-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Status dot - always in same position */
+.exec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--error);
+  flex-shrink: 0;
+  transition: background var(--transition-normal);
+}
+
+.exec-dot.ready {
+  background: var(--success);
+}
+
+.exec-dot.busy {
+  background: var(--warning);
+}
+
+/* Unavailable message (replaces controls when offline) */
+.exec-unavailable-msg {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.exec-unavailable-msg:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+/* Count input */
+.exec-count {
+  width: 48px;
+  padding: 8px 6px;
+  text-align: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+
+.exec-count:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Run button */
+.exec-run-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.exec-run-btn:hover {
+  background: var(--accent-hover);
+}
+
+.exec-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

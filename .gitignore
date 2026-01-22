@@ -1,0 +1,44 @@
+# Database
+registrations.db
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# User config (use settings.yaml.example)
+settings.yaml
+
+# Systems integration (local registry metadata)
+.system/
+
+# User-specific hooks (keep __init__.py and _default.py)
+hooks/conduit/
+hooks/*.py
+!hooks/__init__.py
+!hooks/_default.py
+
+# User-specific event subscribers (keep __init__.py)
+subscribers/*.py
+!subscribers/__init__.py
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Cache/Logs
+.cache/
+*.log
+*.pid

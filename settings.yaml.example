@@ -1,0 +1,48 @@
+# ComfyUI Viewer Configuration
+#
+# Copy this file to settings.yaml and customize for your setup.
+# Environment variables override these settings where noted.
+
+# Server settings
+host: 0.0.0.0
+port: 5000  # Or set COMFY_VIEWER_PORT
+
+# ComfyUI connection
+# Override with COMFY_HOST environment variable
+comfy_host: http://127.0.0.1:8188
+
+# Directories
+# Override with COMFY_OUTPUT_DIR and QUICKSAVES_DIR environment variables
+output_dir: ./output              # Path to ComfyUI output directory
+quicksaves_dir: ./quicksaves      # Path to save quicksave images
+templates_dir: workflows
+
+# Generation settings
+randomize_seed: true
+
+# ─────────────────────────────────────────────────────────────
+# File Backend Configuration
+# ─────────────────────────────────────────────────────────────
+# The file backend determines how images are accessed.
+# Both local and remote modes use the same API channel for consistency.
+
+# Backend type: "local" or "remote"
+file_backend: local
+
+# Remote server settings (only used when file_backend is "remote")
+# remote_url: http://192.168.1.100:5000  # URL of the server with files
+# poll_interval: 2.0                      # Seconds between polling for changes
+
+# ─────────────────────────────────────────────────────────────
+# Display Field Configuration
+# ─────────────────────────────────────────────────────────────
+# Maps extracted hook fields to UI display slots.
+# Change these to show different data in the gallery overlays.
+
+display:
+  title:
+    field: "char_str"      # Hook field: char_str, prompt, etc.
+    label: "Character"     # UI label shown above the value
+  data:
+    field: "prompt"        # Hook field to display
+    label: "Prompt"        # UI label shown above the value

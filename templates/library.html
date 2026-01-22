@@ -1,0 +1,2258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComfyUI Library</title>
+  <link rel="stylesheet" href="/static/css/execution-block.css">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       Design System - Inspired by Linear, Figma, Adobe Lightroom
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root {
+      /* Colors - Modern dark theme */
+      --bg-primary: #0d0d0d;
+      --bg-secondary: #161616;
+      --bg-tertiary: #1c1c1c;
+      --bg-elevated: #222222;
+      --bg-hover: #2a2a2a;
+
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-default: rgba(255, 255, 255, 0.1);
+      --border-strong: rgba(255, 255, 255, 0.15);
+
+      --text-primary: #f5f5f5;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --text-tertiary: rgba(255, 255, 255, 0.5);
+      --text-quaternary: rgba(255, 255, 255, 0.35);
+
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --accent-subtle: rgba(99, 102, 241, 0.15);
+
+      --success: #22c55e;
+      --success-subtle: rgba(34, 197, 94, 0.15);
+      --warning: #f59e0b;
+      --error: #ef4444;
+
+      /* Spacing */
+      --sidebar-width: 320px;
+      --header-height: 52px;
+
+      /* Typography */
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+      /* Transitions */
+      --transition-fast: 0.1s ease;
+      --transition-normal: 0.2s ease;
+      --transition-slow: 0.3s ease;
+
+      /* Radius */
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Layout - Sidebar + Main Content
+       ═══════════════════════════════════════════════════════════════ */
+
+    .app-layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: width var(--transition-normal);
+    }
+
+    .sidebar.collapsed {
+      width: 0;
+      border-right: none;
+    }
+
+    .sidebar.collapsed .sidebar-header,
+    .sidebar.collapsed .sidebar-content,
+    .sidebar.collapsed .sidebar-footer {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--header-height);
+    }
+
+    .sidebar-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg-primary);
+    }
+
+    .main-header {
+      height: var(--header-height);
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: var(--bg-secondary);
+    }
+
+    .main-header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+
+    .gallery-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Components
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: none;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-default);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: var(--radius-md);
+    }
+
+    .btn-large {
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 0;
+      padding: 16px 0;
+      position: relative;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .form-group:last-child {
+      border-bottom: none;
+    }
+
+    .form-group-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Drag Handle */
+    .drag-handle {
+      width: 28px;
+      min-height: 44px; /* Touch-friendly minimum */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: grab;
+      color: var(--text-quaternary);
+      flex-shrink: 0;
+      margin-top: 20px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
+      touch-action: none; /* Prevent browser touch gestures */
+    }
+
+    .drag-handle:hover {
+      color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
+      background: var(--bg-hover);
+    }
+
+    .drag-handle-dot {
+      width: 5px;
+      height: 5px;
+      background: currentColor;
+      border-radius: 50%;
+    }
+
+    /* Mobile: larger touch target */
+    @media (pointer: coarse) {
+      .drag-handle {
+        width: 36px;
+        min-height: 52px;
+      }
+      .drag-handle-dot {
+        width: 6px;
+        height: 6px;
+      }
+    }
+
+    .form-group.dragging {
+      opacity: 0.5;
+      background: var(--bg-hover);
+      border-radius: var(--radius-md);
+    }
+
+    .form-group.drag-over {
+      border-top: 2px solid var(--accent);
+      margin-top: -2px;
+    }
+
+    .form-label {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .form-label-tag {
+      color: var(--text-primary);
+    }
+
+    .form-label-node {
+      font-weight: 400;
+      font-size: 11px;
+      color: var(--text-quaternary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    .form-label-meta {
+      display: block;
+      font-weight: 400;
+      color: var(--text-quaternary);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-subtle);
+    }
+
+    .form-input::placeholder,
+    .form-textarea::placeholder {
+      color: var(--text-quaternary);
+    }
+
+    .form-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .form-input-small {
+      width: 100px;
+    }
+
+    /* Select Dropdown */
+    .form-select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Status Indicator */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--error);
+      flex-shrink: 0;
+      transition: background var(--transition-normal);
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+    }
+
+    .status-dot.error {
+      background: var(--error);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Corner Top-Right (Fixed Position) - Matches Viewer
+       ═══════════════════════════════════════════════════════════════ */
+
+    .corner-top-right {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .page-swap-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-default);
+      color: var(--text-primary);
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all var(--transition-fast);
+      text-decoration: none;
+      font-size: 18px;
+    }
+
+    .page-swap-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Execution Block Container (Floating)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .corner-bottom-left {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      z-index: 1000;
+    }
+
+    /* Save Indicator */
+    .save-indicator {
+      font-size: 11px;
+      color: var(--text-quaternary);
+      transition: color var(--transition-fast);
+    }
+
+    .save-indicator.pending {
+      color: var(--warning);
+    }
+
+    .save-indicator.saved {
+      color: var(--success);
+    }
+
+    .save-indicator.error {
+      color: var(--error);
+    }
+
+    /* Output Tags */
+    .output-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .output-tag {
+      padding: 4px 8px;
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Gallery Grid - Pinterest/Google Photos style
+       ═══════════════════════════════════════════════════════════════ */
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--thumbnail-size, 180px), 1fr));
+      gap: 12px;
+    }
+
+    .gallery-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      cursor: pointer;
+      background: var(--bg-tertiary);
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .gallery-item:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .gallery-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: opacity var(--transition-normal);
+    }
+
+    .gallery-item img.loading {
+      opacity: 0;
+    }
+
+    .gallery-item img.loaded {
+      opacity: 1;
+    }
+
+    .gallery-item-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+      display: flex;
+      align-items: flex-end;
+      padding: 12px;
+    }
+
+    .gallery-item:hover .gallery-item-overlay {
+      opacity: 1;
+    }
+
+    .gallery-item-info {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.9);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Loading States */
+    .gallery-loading {
+      display: flex;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--border-default);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .gallery-end {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-quaternary);
+      font-size: 13px;
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 64px;
+      color: var(--text-tertiary);
+      text-align: center;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state-text {
+      font-size: 14px;
+      max-width: 240px;
+    }
+
+    /* Workflow Info */
+    .workflow-info {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-quaternary);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border-subtle);
+      margin: 16px 0;
+    }
+
+    /* Toggle Button */
+    .sidebar-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .sidebar-toggle:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* Image Count Badge */
+    .image-count {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+
+    /* Keyboard Shortcuts Hint */
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-default);
+      border-radius: 4px;
+      color: var(--text-tertiary);
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-default);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-strong);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Settings Modal - Matches Viewer's Gallery Settings Modal
+       ═══════════════════════════════════════════════════════════════ */
+
+    .settings-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--transition-normal), visibility var(--transition-normal);
+    }
+
+    .settings-modal.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xl);
+      width: 90%;
+      max-width: 480px;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.95);
+      transition: transform var(--transition-normal);
+    }
+
+    .settings-modal.open .modal-content {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
+    }
+
+    .modal-close:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .settings-section-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-tertiary);
+      padding: 16px 0 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .settings-section-header:first-child {
+      padding-top: 0;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      padding-left: 12px;
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-row > label {
+      font-size: 14px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .settings-input {
+      width: 100px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .settings-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .settings-input-wide {
+      width: 180px;
+    }
+
+    .settings-toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      background: var(--border-default);
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .settings-toggle.active {
+      background: var(--accent);
+    }
+
+    .settings-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+
+    .settings-toggle.active::after {
+      transform: translateX(18px);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-subtle);
+      gap: 12px;
+    }
+
+    .settings-select {
+      padding: 8px 12px;
+      font-size: 13px;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      cursor: pointer;
+      min-width: 120px;
+    }
+
+    .settings-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .settings-path-group {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex: 1;
+      max-width: 280px;
+    }
+
+    .settings-path-group .settings-input {
+      flex: 1;
+    }
+
+    .settings-browse-btn {
+      padding: 6px 10px;
+      font-size: 14px;
+      min-width: 32px;
+    }
+
+    .btn-warning {
+      background: var(--warning, #f59e0b);
+      color: #000;
+      border: none;
+    }
+
+    .btn-warning:hover {
+      background: #d97706;
+    }
+
+    .btn-warning:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-small {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .settings-input-wide {
+      width: 100%;
+      max-width: 280px;
+    }
+
+    /* No Workflows Placeholder */
+    .no-workflows-placeholder {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      text-align: center;
+      gap: 16px;
+    }
+
+    .no-workflows-placeholder.visible {
+      display: flex;
+    }
+
+    .no-workflows-placeholder .placeholder-icon {
+      font-size: 48px;
+      opacity: 0.6;
+    }
+
+    .no-workflows-placeholder .placeholder-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .no-workflows-placeholder .placeholder-text {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      max-width: 260px;
+    }
+
+    .no-workflows-placeholder .placeholder-link {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .no-workflows-placeholder .placeholder-link:hover {
+      text-decoration: underline;
+    }
+
+    .no-workflows-placeholder .btn-refresh-large {
+      margin-top: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      gap: 8px;
+    }
+
+    /* No Tagged Inputs Placeholder */
+    .no-inputs-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      text-align: center;
+      gap: 12px;
+    }
+
+    .no-inputs-placeholder .placeholder-icon {
+      font-size: 36px;
+      opacity: 0.6;
+    }
+
+    .no-inputs-placeholder .placeholder-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .no-inputs-placeholder .placeholder-text {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      max-width: 240px;
+    }
+
+    .no-inputs-placeholder code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+      }
+
+      .sidebar.collapsed {
+        transform: translateX(-100%);
+      }
+
+      .gallery-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top-Right: Settings & Navigation (Matches Viewer) -->
+  <div class="corner-top-right" id="topRight">
+    <button class="page-swap-btn" id="settingsBtn" title="Settings">≡</button>
+    <a href="/" class="page-swap-btn" title="Viewer">👁️</a>
+  </div>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Workflow Settings</span>
+        <button class="sidebar-toggle" id="sidebarClose" title="Close sidebar (B)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-content">
+        <!-- No Workflows Placeholder -->
+        <div class="no-workflows-placeholder" id="noWorkflowsPlaceholder">
+          <div class="placeholder-icon">🔌</div>
+          <div class="placeholder-title">No Workflows Found</div>
+          <div class="placeholder-text">
+            Install <a href="https://github.com/NickPittas/ComfyUI-Conduit" target="_blank" class="placeholder-link">ComfyUI-Conduit</a> to enable workflow execution from this interface.
+          </div>
+          <button class="btn btn-primary btn-refresh-large" id="placeholderRefreshBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+
+        <!-- Workflow Selection -->
+        <div class="section" id="workflowSection">
+          <div class="section-header">
+            <span class="section-title">Workflow</span>
+            <button class="btn btn-ghost btn-icon" id="refreshBtn" title="Refresh workflows">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+          </div>
+          <select class="form-select" id="workflowSelect">
+            <option value="">Loading workflows...</option>
+          </select>
+          <div class="workflow-info" id="workflowInfo"></div>
+        </div>
+
+        <!-- Inputs -->
+        <div class="section" id="inputsSection" style="display: none;">
+          <div class="section-header">
+            <span class="section-title">Inputs</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="save-indicator" id="saveIndicator"></span>
+              <button class="btn btn-ghost" id="resetBtn" style="padding: 4px 8px; font-size: 11px;">Reset</button>
+            </div>
+          </div>
+          <div id="inputsContainer">
+            <!-- Inputs rendered here -->
+          </div>
+        </div>
+
+        <!-- Outputs Preview -->
+        <div class="section" id="outputsSection" style="display: none;">
+          <div class="section-header">
+            <span class="section-title">Outputs</span>
+          </div>
+          <div class="output-tags" id="outputTags"></div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="main-header">
+        <div class="main-header-left">
+          <button class="btn btn-ghost btn-icon" id="sidebarToggle" title="Toggle sidebar (B)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12h18M3 6h18M3 18h18"/>
+            </svg>
+          </button>
+          <h1 style="font-size: 16px; font-weight: 600;">Library</h1>
+          <span class="image-count" id="imageCount"></span>
+        </div>
+      </header>
+
+      <div class="gallery-container" id="galleryContainer">
+        <div class="gallery-grid" id="galleryGrid">
+          <!-- Images rendered here -->
+        </div>
+        <div class="gallery-loading" id="galleryLoading" style="display: none;">
+          <div class="spinner"></div>
+        </div>
+        <div class="gallery-end" id="galleryEnd" style="display: none;">
+          No more images
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Floating Execution Block (built by JS) -->
+  <div class="corner-bottom-left" id="floatingExecBlock"></div>
+
+  <!-- Settings Modal (matches Viewer) -->
+  <div class="settings-modal" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Settings</h3>
+        <button class="modal-close" id="modalClose">×</button>
+      </div>
+      <div class="modal-body" id="settingsForm">
+        <!-- Generated by shared settings component -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="resetDefaults">Reset Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared Components -->
+  <script src="/static/js/settings-modal.js"></script>
+  <script src="/static/js/execution-block.js"></script>
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // Library Settings Configuration
+    // ═══════════════════════════════════════════════════════════════
+
+    const LIBRARY_SETTINGS_SECTIONS = {
+      'Display': ['thumbnail_size'],
+      'Features': ['enable_workflows', 'show_execution'],
+      'Connection': ['comfy_url', 'server_port'],
+      'Paths': ['output_dir', 'quicksaves_dir']
+    };
+
+    const LIBRARY_SETTINGS_ELEMENTS = {
+      thumbnail_size: {
+        type: 'select',
+        default: 'medium',
+        label: 'Thumbnail Size',
+        options: [
+          { value: 'small', label: 'Small' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'large', label: 'Large' },
+          { value: 'xlarge', label: 'Extra Large' }
+        ]
+      },
+      enable_workflows: {
+        type: 'toggle',
+        default: true,
+        label: 'Show Workflow Sidebar'
+      },
+      show_execution: {
+        type: 'toggle',
+        default: true,
+        label: 'Show Execution Controls'
+      },
+      comfy_url: {
+        type: 'text',
+        default: '',
+        placeholder: 'http://127.0.0.1:8188',
+        label: 'ComfyUI URL',
+        wide: true,
+        requiresRestart: true
+      },
+      server_port: {
+        type: 'text',
+        default: '',
+        placeholder: '5000',
+        label: 'Server Port',
+        requiresRestart: true
+      },
+      output_dir: {
+        type: 'text',
+        default: '',
+        placeholder: '/path/to/ComfyUI/output',
+        label: 'Watch Folder',
+        wide: true,
+        browse: true,
+        requiresRestart: true
+      },
+      quicksaves_dir: {
+        type: 'text',
+        default: '',
+        placeholder: '/path/to/quicksaves',
+        label: 'Quicksave Folder',
+        wide: true,
+        browse: true
+      }
+    };
+
+    // Thumbnail size presets (in pixels)
+    const THUMBNAIL_SIZES = {
+      small: 120,
+      medium: 180,
+      large: 250,
+      xlarge: 350
+    };
+
+    // Apply Library-specific settings
+    function applyLibrarySetting(key, value) {
+      switch (key) {
+        case 'thumbnail_size':
+          const grid = document.getElementById('galleryGrid');
+          const sizeInPx = THUMBNAIL_SIZES[value] || THUMBNAIL_SIZES.medium;
+          if (grid) grid.style.setProperty('--thumbnail-size', `${sizeInPx}px`);
+          break;
+        case 'enable_workflows':
+          const sidebar = document.getElementById('sidebar');
+          const sidebarToggle = document.getElementById('sidebarToggle');
+          if (sidebar) sidebar.style.display = value ? '' : 'none';
+          if (sidebarToggle) sidebarToggle.style.display = value ? '' : 'none';
+          break;
+        case 'show_execution':
+          const execBlock = document.getElementById('floatingExecBlock');
+          if (execBlock) execBlock.style.display = value ? '' : 'none';
+          break;
+      }
+    }
+
+    // Load current server settings as defaults/placeholders
+    async function loadServerSettings() {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        // Set placeholders from current server values
+        LIBRARY_SETTINGS_ELEMENTS.output_dir.placeholder = data.output_dir || '/path/to/output';
+        LIBRARY_SETTINGS_ELEMENTS.quicksaves_dir.placeholder = data.quicksaves_dir || '/path/to/quicksaves';
+        LIBRARY_SETTINGS_ELEMENTS.comfy_url.placeholder = data.comfy_host || 'http://127.0.0.1:8188';
+        LIBRARY_SETTINGS_ELEMENTS.server_port.placeholder = String(data.server_port || 5000);
+      } catch (e) {
+        console.error('Failed to load server settings:', e);
+      }
+    }
+
+    // Initialize shared settings modal for Library
+    let librarySettings;
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Load server settings to populate placeholders
+      await loadServerSettings();
+
+      librarySettings = new SettingsModal({
+        modalId: 'settingsModal',
+        formId: 'settingsForm',
+        sections: LIBRARY_SETTINGS_SECTIONS,
+        elements: LIBRARY_SETTINGS_ELEMENTS,
+        storageKey: 'comfy-viewer-library',
+        apiEndpoint: '/api/settings',
+        onSettingChange: applyLibrarySetting
+      });
+      librarySettings.init();
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // Conduit Workflow Settings - Redesigned
+    // ═══════════════════════════════════════════════════════════════
+
+    const BATCH_SIZE = 40;
+
+    const app = {
+      // State
+      workflows: [],
+      currentWorkflow: null,
+      schema: null,
+      savedInputs: {},
+      saveTimeout: null,
+      pendingSaves: {},
+
+      // Gallery state
+      images: [],
+      totalImages: 0,
+      offset: 0,
+      isLoading: false,
+      hasMore: true,
+
+      // Execution block (shared component)
+      execBlock: null,
+
+      // ─────────────────────────────────────────────────────────────
+      // Initialization
+      // ─────────────────────────────────────────────────────────────
+
+      async init() {
+        this.initExecutionBlock();
+        this.setupEvents();
+        this.setupInfiniteScroll();
+        this.setupKeyboardShortcuts();
+        await Promise.all([
+          this.loadWorkflows(),
+          this.loadGallery()
+        ]);
+      },
+
+      initExecutionBlock() {
+        this.execBlock = new ExecutionBlock({
+          containerId: 'floatingExecBlock',
+          getWorkflowName: () => {
+            return this.currentWorkflow || 'No workflow';
+          },
+          getRunConfig: () => {
+            if (!this.currentWorkflow) return null;
+            return {
+              workflow: this.currentWorkflow,
+              inputs: this.collectInputs()
+            };
+          }
+        });
+        this.execBlock.init();
+      },
+
+      setupEvents() {
+        // Workflow selection
+        document.getElementById('workflowSelect').addEventListener('change', (e) => {
+          this.selectWorkflow(e.target.value);
+        });
+
+        // Buttons
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+          this.loadWorkflows();
+          // Also check server availability
+          if (this.execBlock) this.execBlock.checkStatus();
+        });
+        document.getElementById('placeholderRefreshBtn').addEventListener('click', () => {
+          this.loadWorkflows();
+          if (this.execBlock) this.execBlock.checkStatus();
+        });
+        document.getElementById('resetBtn').addEventListener('click', () => this.resetInputs());
+
+        // Sidebar toggle
+        document.getElementById('sidebarToggle').addEventListener('click', () => this.toggleSidebar());
+        document.getElementById('sidebarClose').addEventListener('click', () => this.toggleSidebar());
+      },
+
+      setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+          // Don't trigger shortcuts when typing in inputs
+          if (e.target.matches('input, textarea, select')) return;
+
+          switch (e.key.toLowerCase()) {
+            case 'b':
+              this.toggleSidebar();
+              break;
+            case 'r':
+              if (!e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                if (this.execBlock) this.execBlock.run();
+              }
+              break;
+          }
+        });
+      },
+
+      toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+        // After sidebar animation, check if more images should load
+        setTimeout(() => {
+          if (this.hasMore && !this.isLoading) {
+            this.checkIfMoreNeeded();
+          }
+        }, 250);
+      },
+
+      checkIfMoreNeeded() {
+        // Manually check if we need more images after layout change
+        const container = document.getElementById('galleryContainer');
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        // If content doesn't fill the viewport, load more
+        if (scrollHeight <= clientHeight + 100 || scrollTop + clientHeight >= scrollHeight - 300) {
+          this.loadMoreImages();
+        }
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Infinite Scroll
+      // ─────────────────────────────────────────────────────────────
+
+      setupInfiniteScroll() {
+        const container = document.getElementById('galleryContainer');
+
+        // Use IntersectionObserver for smooth infinite scroll
+        const sentinel = document.createElement('div');
+        sentinel.id = 'scrollSentinel';
+        sentinel.style.height = '1px';
+        container.appendChild(sentinel);
+
+        const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting && this.hasMore && !this.isLoading) {
+            this.loadMoreImages();
+          }
+        }, {
+          root: container,
+          rootMargin: '200px', // Start loading before reaching the end
+        });
+
+        observer.observe(sentinel);
+
+        // Also handle scroll event as backup
+        container.addEventListener('scroll', () => {
+          if (this.isLoading || !this.hasMore) return;
+
+          const { scrollTop, scrollHeight, clientHeight } = container;
+          if (scrollTop + clientHeight >= scrollHeight - 300) {
+            this.loadMoreImages();
+          }
+        });
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Workflow Management
+      // ─────────────────────────────────────────────────────────────
+
+      async loadWorkflows() {
+        try {
+          // Fetch workflows and last-used workflow in parallel
+          const [workflowsRes, lastRes] = await Promise.all([
+            fetch('/api/conduit/workflows'),
+            fetch('/api/last-workflow')
+          ]);
+
+          const workflowsData = await workflowsRes.json();
+          const lastData = await lastRes.json();
+
+          this.workflows = workflowsData.workflows || [];
+          this.renderWorkflowSelect();
+
+          // Update execution block: hide controls if no workflows
+          if (this.execBlock) {
+            this.execBlock.setWorkflowsAvailable(this.workflows.length > 0);
+          }
+
+          // Show/hide placeholder vs workflow controls
+          const placeholder = document.getElementById('noWorkflowsPlaceholder');
+          const workflowSection = document.getElementById('workflowSection');
+          const inputsSection = document.getElementById('inputsSection');
+          const outputsSection = document.getElementById('outputsSection');
+
+          if (this.workflows.length === 0) {
+            placeholder.classList.add('visible');
+            workflowSection.style.display = 'none';
+            inputsSection.style.display = 'none';
+            outputsSection.style.display = 'none';
+          } else {
+            placeholder.classList.remove('visible');
+            workflowSection.style.display = '';
+          }
+
+          if (this.workflows.length > 0) {
+            // Use last workflow if it exists and is still available, otherwise use first
+            const lastWorkflow = lastData.workflow;
+            const workflowToSelect = lastWorkflow && this.workflows.some(w => w.name === lastWorkflow)
+              ? lastWorkflow
+              : this.workflows[0].name;
+
+            document.getElementById('workflowSelect').value = workflowToSelect;
+            await this.selectWorkflow(workflowToSelect);
+          }
+        } catch (e) {
+          console.error('Failed to load workflows:', e);
+          document.getElementById('workflowSelect').innerHTML = '<option value="">Failed to load</option>';
+          // Also mark as no workflows on error
+          if (this.execBlock) {
+            this.execBlock.setWorkflowsAvailable(false);
+          }
+        }
+      },
+
+      renderWorkflowSelect() {
+        const select = document.getElementById('workflowSelect');
+
+        if (this.workflows.length === 0) {
+          select.innerHTML = '<option value="">No workflows available</option>';
+          return;
+        }
+
+        select.innerHTML = this.workflows.map(wf =>
+          `<option value="${wf.name}">${wf.name}</option>`
+        ).join('');
+      },
+
+      async selectWorkflow(name) {
+        if (!name) {
+          this.currentWorkflow = null;
+          this.schema = null;
+          this.enrichedInputs = [];
+          this.savedInputs = {};
+          document.getElementById('inputsSection').style.display = 'none';
+          document.getElementById('outputsSection').style.display = 'none';
+          document.getElementById('workflowInfo').textContent = '';
+          return;
+        }
+
+        try {
+          const [schemaRes, inputsRes, savedRes] = await Promise.all([
+            fetch(`/api/conduit/workflows/${encodeURIComponent(name)}`),
+            fetch(`/api/conduit/workflows/${encodeURIComponent(name)}/inputs`),
+            fetch(`/api/workflow-inputs/${encodeURIComponent(name)}`)
+          ]);
+
+          const schemaData = await schemaRes.json();
+          const inputsData = await inputsRes.json();
+          const savedData = await savedRes.json();
+
+          this.currentWorkflow = name;
+          this.schema = schemaData.schema;
+          this.enrichedInputs = inputsData.inputs || [];  // Rich input data with defaults
+          this.savedInputs = savedData.inputs || {};
+          this.pendingSaves = {};
+
+          // Apply saved input order if available
+          if (this.savedInputs._order && Array.isArray(this.savedInputs._order)) {
+            const orderMap = new Map(this.savedInputs._order.map((tag, i) => [tag, i]));
+            this.enrichedInputs.sort((a, b) => {
+              const aIdx = orderMap.has(a.tag_name) ? orderMap.get(a.tag_name) : 9999;
+              const bIdx = orderMap.has(b.tag_name) ? orderMap.get(b.tag_name) : 9999;
+              return aIdx - bIdx;
+            });
+          }
+
+          // Save as last-used workflow (fire and forget)
+          fetch('/api/last-workflow', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workflow: name })
+          }).catch(() => {}); // Ignore errors
+
+          // Update workflow info
+          const wf = this.workflows.find(w => w.name === name);
+          if (wf) {
+            const inputCount = this.schema?.inputs?.length || 0;
+            const outputCount = this.schema?.outputs?.length || 0;
+            const savedCount = Object.keys(this.savedInputs).length;
+            document.getElementById('workflowInfo').textContent =
+              `${inputCount} inputs · ${outputCount} outputs` +
+              (savedCount > 0 ? ` · ${savedCount} customized` : '');
+          }
+
+          this.renderInputs();
+          this.renderOutputs();
+          this.updateSaveIndicator();
+
+          document.getElementById('inputsSection').style.display = 'block';
+        } catch (e) {
+          console.error('Failed to load workflow:', e);
+        }
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Input Rendering
+      // ─────────────────────────────────────────────────────────────
+
+      renderInputs() {
+        const container = document.getElementById('inputsContainer');
+        const inputs = this.enrichedInputs || [];
+
+        if (inputs.length === 0) {
+          container.innerHTML = `
+            <div class="no-inputs-placeholder">
+              <div class="placeholder-icon">🏷️</div>
+              <div class="placeholder-title">No Tagged Inputs</div>
+              <div class="placeholder-text">
+                Tag input sockets in ComfyUI with <code>#tag_name</code> to expose them here for easy editing.
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = inputs.map((input, idx) => {
+          // Skip linked inputs (connected to other nodes, can't override with simple value)
+          if (input.is_linked) return '';
+
+          const fieldHtml = this.createInputField(input, idx);
+          const tag = input.tag_name;
+          const hasSaved = this.savedInputs[tag] !== undefined;
+
+          // Show node context: prefer nodeTitle, fall back to nodeType
+          const nodeInfo = input.node_title || input.class_type || `Node ${input.node_id}`;
+          const nodeInfoShort = nodeInfo.length > 25 ? nodeInfo.substring(0, 23) + '…' : nodeInfo;
+
+          return `
+            <div class="form-group" draggable="true" data-index="${idx}">
+              <div class="drag-handle" title="Drag to reorder">
+                <div class="drag-handle-dot"></div>
+                <div class="drag-handle-dot"></div>
+                <div class="drag-handle-dot"></div>
+              </div>
+              <div class="form-group-content">
+                <label class="form-label">
+                  <span class="form-label-tag">${tag}</span>
+                  <span class="form-label-node" title="${nodeInfo}">${nodeInfoShort}</span>
+                </label>
+                <span class="form-label-meta">${input.data_type}${hasSaved ? ' ●' : ''}</span>
+                ${fieldHtml}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Attach change handlers
+        container.querySelectorAll('[data-tag]').forEach(field => {
+          field.addEventListener('input', () => this.handleInputChange(field));
+          field.addEventListener('change', () => this.handleInputChange(field));
+        });
+
+        // Setup drag-and-drop
+        this.setupDragAndDrop(container);
+      },
+
+      setupDragAndDrop(container) {
+        let draggedElement = null;
+        let draggedIndex = -1;
+        let touchStartY = 0;
+        let currentDropTarget = null;
+
+        const groups = container.querySelectorAll('.form-group[draggable]');
+
+        // Helper: find which group element is at a given Y position
+        const getGroupAtY = (y) => {
+          for (const g of groups) {
+            const rect = g.getBoundingClientRect();
+            if (y >= rect.top && y <= rect.bottom) {
+              return g;
+            }
+          }
+          return null;
+        };
+
+        // Helper: perform the reorder
+        const doReorder = (targetIndex) => {
+          if (draggedIndex === targetIndex || targetIndex === -1) return;
+
+          const inputs = this.enrichedInputs;
+          const [removed] = inputs.splice(draggedIndex, 1);
+          inputs.splice(targetIndex, 0, removed);
+
+          this.renderInputs();
+          this.markInputOrderChanged();
+        };
+
+        // Helper: cleanup drag state
+        const cleanupDrag = () => {
+          if (draggedElement) {
+            draggedElement.classList.remove('dragging');
+          }
+          container.querySelectorAll('.form-group').forEach(g => g.classList.remove('drag-over'));
+          draggedElement = null;
+          draggedIndex = -1;
+          currentDropTarget = null;
+        };
+
+        groups.forEach(group => {
+          const handle = group.querySelector('.drag-handle');
+
+          // ─────────────────────────────────────────────────────────────
+          // Desktop: HTML5 Drag and Drop
+          // ─────────────────────────────────────────────────────────────
+          group.addEventListener('dragstart', (e) => {
+            if (!e.target.closest('.drag-handle') && e.target.classList.contains('form-group')) {
+              const rect = handle.getBoundingClientRect();
+              if (e.clientX < rect.left || e.clientX > rect.right ||
+                  e.clientY < rect.top || e.clientY > rect.bottom) {
+                e.preventDefault();
+                return;
+              }
+            }
+            draggedElement = group;
+            draggedIndex = parseInt(group.dataset.index);
+            group.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+          });
+
+          group.addEventListener('dragend', cleanupDrag);
+
+          group.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!draggedElement || draggedElement === group) return;
+            e.dataTransfer.dropEffect = 'move';
+            group.classList.add('drag-over');
+          });
+
+          group.addEventListener('dragleave', () => {
+            group.classList.remove('drag-over');
+          });
+
+          group.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (!draggedElement || draggedElement === group) return;
+            doReorder(parseInt(group.dataset.index));
+          });
+
+          // ─────────────────────────────────────────────────────────────
+          // Mobile: Touch Events
+          // ─────────────────────────────────────────────────────────────
+          handle.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling
+            draggedElement = group;
+            draggedIndex = parseInt(group.dataset.index);
+            touchStartY = e.touches[0].clientY;
+            group.classList.add('dragging');
+          }, { passive: false });
+
+          handle.addEventListener('touchmove', (e) => {
+            if (!draggedElement) return;
+            e.preventDefault();
+
+            const touchY = e.touches[0].clientY;
+            const targetGroup = getGroupAtY(touchY);
+
+            // Update visual feedback
+            if (currentDropTarget && currentDropTarget !== targetGroup) {
+              currentDropTarget.classList.remove('drag-over');
+            }
+            if (targetGroup && targetGroup !== draggedElement) {
+              targetGroup.classList.add('drag-over');
+              currentDropTarget = targetGroup;
+            }
+          }, { passive: false });
+
+          handle.addEventListener('touchend', (e) => {
+            if (!draggedElement) return;
+
+            // Find where we dropped
+            if (currentDropTarget && currentDropTarget !== draggedElement) {
+              doReorder(parseInt(currentDropTarget.dataset.index));
+            } else {
+              cleanupDrag();
+            }
+          });
+        });
+      },
+
+      markInputOrderChanged() {
+        // Save the new order as a special key
+        const order = this.enrichedInputs.map(inp => inp.tag_name);
+        this.pendingSaves['_order'] = order;
+        this.updateSaveIndicator('pending');
+        this.debounceSave();
+      },
+
+      // Format a value for display in placeholder
+      formatForDisplay(value, dataType) {
+        if (value === undefined || value === null) return '';
+
+        if (typeof value === 'string') {
+          if (value.length > 50) return value.substring(0, 47) + '...';
+          return value || '(empty)';
+        }
+
+        if (typeof value === 'number') {
+          if (dataType === 'INT') return String(Math.round(value));
+          return String(parseFloat(value.toFixed(4)));
+        }
+
+        if (typeof value === 'boolean') return value ? 'True' : 'False';
+
+        return String(value);
+      },
+
+      createInputField(input, idx) {
+        const id = `input_${idx}`;
+        const tag = input.tag_name;
+        const dataType = input.data_type.toUpperCase();
+        const savedValue = this.savedInputs[tag];
+        const hasSaved = savedValue !== undefined;
+        const workflowValue = input.workflow_value;
+        const registry = input.registry || {};
+
+        // Use workflow_value as placeholder (the "effective default")
+        const placeholder = this.formatForDisplay(workflowValue, dataType) || 'No default';
+
+        if (dataType === 'INT') {
+          const val = hasSaved ? ` value="${savedValue}"` : '';
+          const min = registry.min !== undefined ? ` min="${registry.min}"` : '';
+          const max = registry.max !== undefined ? ` max="${registry.max}"` : '';
+          return `<input type="number" class="form-input" id="${id}" step="1" data-tag="${tag}"${val}${min}${max} placeholder="${placeholder}">`;
+
+        } else if (dataType === 'FLOAT') {
+          const val = hasSaved ? ` value="${savedValue}"` : '';
+          const step = registry.step || 0.01;
+          const min = registry.min !== undefined ? ` min="${registry.min}"` : '';
+          const max = registry.max !== undefined ? ` max="${registry.max}"` : '';
+          return `<input type="number" class="form-input" id="${id}" step="${step}" data-tag="${tag}"${val}${min}${max} placeholder="${placeholder}">`;
+
+        } else if (dataType === 'COMBO' && registry.options) {
+          // Dropdown with actual options from ComfyUI
+          const options = registry.options.map(opt => {
+            const selected = hasSaved ? (savedValue === opt ? ' selected' : '') : '';
+            return `<option value="${this.escapeHtml(opt)}"${selected}>${this.escapeHtml(opt)}</option>`;
+          }).join('');
+          const defaultLabel = workflowValue ? ` (${this.escapeHtml(String(workflowValue))})` : '';
+          return `
+            <select class="form-select" id="${id}" data-tag="${tag}">
+              <option value="">Default${defaultLabel}</option>
+              ${options}
+            </select>
+          `;
+
+        } else if (dataType === 'BOOLEAN') {
+          const selTrue = savedValue === true ? ' selected' : '';
+          const selFalse = savedValue === false ? ' selected' : '';
+          const defaultLabel = workflowValue !== undefined ? ` (${workflowValue ? 'True' : 'False'})` : '';
+          return `
+            <select class="form-select" id="${id}" data-tag="${tag}" style="width: 140px;">
+              <option value="">Default${defaultLabel}</option>
+              <option value="true"${selTrue}>True</option>
+              <option value="false"${selFalse}>False</option>
+            </select>
+          `;
+
+        } else if (dataType === 'IMAGE') {
+          return `<input type="file" class="form-input" id="${id}" accept="image/*" data-tag="${tag}">`;
+
+        } else {
+          // STRING and other types - textarea
+          const val = hasSaved ? this.escapeHtml(savedValue) : '';
+          return `<textarea class="form-textarea" id="${id}" data-tag="${tag}" placeholder="${this.escapeHtml(placeholder)}">${val}</textarea>`;
+        }
+      },
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      },
+
+      // Extract value from a form field, returns null for "use default"
+      getFieldValue(field) {
+        if (field.type === 'file') return undefined;  // Skip file inputs
+        if (field.type === 'number') {
+          return field.value ? parseFloat(field.value) : null;
+        }
+        if (field.tagName === 'SELECT') {
+          if (field.value === '') return null;  // "Default" option
+          if (field.value === 'true') return true;
+          if (field.value === 'false') return false;
+          return field.value;  // COMBO value like "euler_ancestral"
+        }
+        return field.value || null;
+      },
+
+      handleInputChange(field) {
+        const tag = field.dataset.tag;
+        const value = this.getFieldValue(field);
+
+        if (value === undefined) return;  // Skip (e.g., file inputs)
+
+        // Always store the value (including null for "clear to default")
+        // The save logic will merge this with savedInputs and remove nulls
+        this.pendingSaves[tag] = value;
+
+        this.updateSaveIndicator('pending');
+        this.debounceSave();
+      },
+
+      debounceSave() {
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => this.saveInputs(), 800);
+      },
+
+      async saveInputs() {
+        if (!this.currentWorkflow || Object.keys(this.pendingSaves).length === 0) {
+          this.updateSaveIndicator();
+          return;
+        }
+
+        this.updateSaveIndicator('saving');
+
+        try {
+          const allInputs = { ...this.savedInputs, ...this.pendingSaves };
+          Object.keys(allInputs).forEach(key => {
+            if (allInputs[key] === null) delete allInputs[key];
+          });
+
+          const res = await fetch(`/api/workflow-inputs/${encodeURIComponent(this.currentWorkflow)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inputs: allInputs })
+          });
+
+          if (res.ok) {
+            this.savedInputs = allInputs;
+            this.pendingSaves = {};
+            this.updateSaveIndicator('saved');
+          } else {
+            this.updateSaveIndicator('error');
+          }
+        } catch (e) {
+          console.error('Failed to save inputs:', e);
+          this.updateSaveIndicator('error');
+        }
+      },
+
+      updateSaveIndicator(state = '') {
+        const indicator = document.getElementById('saveIndicator');
+        indicator.className = 'save-indicator';
+
+        switch (state) {
+          case 'pending':
+            indicator.textContent = 'Unsaved';
+            indicator.classList.add('pending');
+            break;
+          case 'saving':
+            indicator.textContent = 'Saving...';
+            break;
+          case 'saved':
+            indicator.textContent = 'Saved';
+            indicator.classList.add('saved');
+            setTimeout(() => {
+              if (indicator.textContent === 'Saved') indicator.textContent = '';
+            }, 2000);
+            break;
+          case 'error':
+            indicator.textContent = 'Error';
+            indicator.classList.add('error');
+            break;
+          default:
+            indicator.textContent = '';
+        }
+      },
+
+      async resetInputs() {
+        if (!this.currentWorkflow) return;
+        if (!confirm('Reset all inputs to defaults?')) return;
+
+        try {
+          const res = await fetch(`/api/workflow-inputs/${encodeURIComponent(this.currentWorkflow)}`, {
+            method: 'DELETE'
+          });
+
+          if (res.ok) {
+            this.savedInputs = {};
+            this.pendingSaves = {};
+            this.renderInputs();
+            this.updateSaveIndicator('saved');
+          }
+        } catch (e) {
+          console.error('Failed to reset inputs:', e);
+        }
+      },
+
+      renderOutputs() {
+        const outputs = this.schema?.outputs || [];
+        const section = document.getElementById('outputsSection');
+        const container = document.getElementById('outputTags');
+
+        if (outputs.length === 0) {
+          section.style.display = 'none';
+          return;
+        }
+
+        container.innerHTML = outputs.map(output =>
+          `<span class="output-tag">${output.tagName}</span>`
+        ).join('');
+
+        section.style.display = 'block';
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Input Collection (used by ExecutionBlock)
+      // ─────────────────────────────────────────────────────────────
+
+      collectInputs() {
+        const inputs = {};
+        document.querySelectorAll('[data-tag]').forEach(field => {
+          const tag = field.dataset.tag;
+          const value = this.getFieldValue(field);
+          if (value !== null && value !== undefined && value !== '') {
+            inputs[tag] = value;
+          }
+        });
+        return inputs;
+      },
+
+      // ─────────────────────────────────────────────────────────────
+      // Gallery with Infinite Scroll
+      // ─────────────────────────────────────────────────────────────
+
+      async loadGallery() {
+        this.images = [];
+        this.offset = 0;
+        this.hasMore = true;
+        document.getElementById('galleryGrid').innerHTML = '';
+        document.getElementById('galleryEnd').style.display = 'none';
+        await this.loadMoreImages();
+
+        // After initial load, check if we need more images to fill the viewport
+        // This handles the case where the first batch doesn't fill the screen
+        setTimeout(() => this.checkIfMoreNeeded(), 100);
+      },
+
+      async refreshGallery() {
+        // Reload from beginning to get new images
+        await this.loadGallery();
+      },
+
+      async loadMoreImages() {
+        if (this.isLoading || !this.hasMore) return;
+
+        this.isLoading = true;
+        document.getElementById('galleryLoading').style.display = 'flex';
+
+        try {
+          const res = await fetch(`/api/images?offset=${this.offset}&limit=${BATCH_SIZE}`);
+          const data = await res.json();
+
+          const newImages = data.images || [];
+          this.totalImages = data.total || 0;
+          this.images = [...this.images, ...newImages];
+          this.offset += newImages.length;
+
+          // Update count display
+          document.getElementById('imageCount').textContent =
+            `${this.images.length} of ${this.totalImages}`;
+
+          // Check if we have more
+          this.hasMore = newImages.length === BATCH_SIZE && this.offset < this.totalImages;
+
+          // Render new images
+          this.appendImages(newImages);
+
+          if (!this.hasMore) {
+            document.getElementById('galleryEnd').style.display = 'block';
+          }
+
+        } catch (e) {
+          console.error('Failed to load images:', e);
+        } finally {
+          this.isLoading = false;
+          document.getElementById('galleryLoading').style.display = 'none';
+
+          // After loading, check if we still need more to fill the viewport
+          if (this.hasMore) {
+            setTimeout(() => this.checkIfMoreNeeded(), 50);
+          }
+        }
+      },
+
+      appendImages(images) {
+        const grid = document.getElementById('galleryGrid');
+
+        if (this.images.length === 0 && images.length === 0) {
+          grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+              <div class="empty-state-icon">📷</div>
+              <div class="empty-state-text">No images yet. Run a workflow to generate some!</div>
+            </div>
+          `;
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+
+        images.forEach(img => {
+          const item = document.createElement('div');
+          item.className = 'gallery-item';
+          item.onclick = () => window.location.href = `/?image=${encodeURIComponent(img.filename)}`;
+
+          const imgEl = document.createElement('img');
+          imgEl.src = `/thumbnails/${img.filename}`;
+          imgEl.alt = img.filename;
+          imgEl.loading = 'lazy';
+          imgEl.className = 'loading';
+          imgEl.onload = () => imgEl.className = 'loaded';
+
+          const overlay = document.createElement('div');
+          overlay.className = 'gallery-item-overlay';
+
+          const info = document.createElement('div');
+          info.className = 'gallery-item-info';
+          // Show title if available, otherwise filename
+          info.textContent = img.title?.value || img.filename.split('/').pop();
+
+          overlay.appendChild(info);
+          item.appendChild(imgEl);
+          item.appendChild(overlay);
+          fragment.appendChild(item);
+        });
+
+        grid.appendChild(fragment);
+      }
+    };
+
+    // Initialize workflow app
+    app.init();
+
+    // ─────────────────────────────────────────────────────────────
+    // ResizeObserver - Fill viewport on any layout change
+    // ─────────────────────────────────────────────────────────────
+    // Catches: window resize, sidebar toggle, thumbnail size change
+    const galleryResizeObserver = new ResizeObserver(() => {
+      if (app.hasMore && !app.isLoading) {
+        app.checkIfMoreNeeded();
+      }
+    });
+    galleryResizeObserver.observe(document.getElementById('galleryContainer'));
+
+    // ─────────────────────────────────────────────────────────────
+    // WebSocket for real-time updates
+    // ─────────────────────────────────────────────────────────────
+    const ws = {
+      socket: null,
+
+      connect() {
+        // Use Socket.IO if available
+        if (typeof io === 'undefined') {
+          console.log('Socket.IO not loaded, skipping WebSocket');
+          return;
+        }
+
+        this.socket = io({
+          transports: ['websocket', 'polling']
+        });
+
+        this.socket.on('connect', () => {
+          console.log('WebSocket connected');
+        });
+
+        // Server emits all events as "state" with {type, data, state} structure
+        this.socket.on('state', (message) => {
+          const { type, data } = message;
+          console.log('WebSocket event:', type, data);
+
+          switch (type) {
+            case 'image_added':
+              if (data && data.image) {
+                app.prependImage(data.image);
+                // Check if ComfyUI is still busy
+                if (app.execBlock) app.execBlock.onImageReceived();
+              }
+              break;
+
+            case 'generation_started':
+              if (app.execBlock) app.execBlock.onGenerationStarted();
+              break;
+
+            case 'generation_progress':
+              if (app.execBlock) app.execBlock.onProgress(data.progress);
+              break;
+
+            case 'generation_complete':
+              if (app.execBlock) app.execBlock.onGenerationComplete(data.completed, data.total);
+              break;
+
+            case 'generation_batch_complete':
+              // Dot will turn green when checkStatus runs after image received
+              break;
+          }
+        });
+      }
+    };
+
+    // Add prependImage method to app
+    app.prependImage = function(imageData) {
+      // Add to beginning of images array
+      this.images.unshift(imageData);
+      this.totalImages++;
+      this.offset++;
+
+      // Update count display
+      document.getElementById('imageCount').textContent =
+        `${this.images.length} of ${this.totalImages}`;
+
+      // Prepend to grid
+      const grid = document.getElementById('galleryGrid');
+      const item = document.createElement('div');
+      item.className = 'gallery-item';
+      item.onclick = () => window.location.href = `/?image=${encodeURIComponent(imageData.filename)}`;
+
+      const imgEl = document.createElement('img');
+      imgEl.src = `/thumbnails/${imageData.filename}`;
+      imgEl.alt = imageData.filename;
+      imgEl.loading = 'lazy';
+      imgEl.className = 'loading';
+      imgEl.onload = () => imgEl.className = 'loaded';
+
+      const overlay = document.createElement('div');
+      overlay.className = 'gallery-item-overlay';
+
+      const info = document.createElement('div');
+      info.className = 'gallery-item-info';
+      info.textContent = imageData.title?.value || imageData.filename.split('/').pop();
+
+      overlay.appendChild(info);
+      item.appendChild(imgEl);
+      item.appendChild(overlay);
+
+      // Insert at beginning
+      if (grid.firstChild) {
+        grid.insertBefore(item, grid.firstChild);
+      } else {
+        grid.appendChild(item);
+      }
+    };
+
+    // Load Socket.IO and connect
+    const script = document.createElement('script');
+    script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+    script.onload = () => ws.connect();
+    document.head.appendChild(script);
+  </script>
+</body>
+</html>
