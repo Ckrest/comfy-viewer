@@ -25,7 +25,17 @@ build/
 
 # User config
 settings.yaml
+config.local.yaml
 *.local.yaml
+
+# User/Systems hooks
+hooks.local/
+
+# Secrets
+.env
+
+# Node.js
+node_modules/
 
 # IDE/Editor
 .vscode/
@@ -34,6 +44,12 @@ settings.yaml
 *.swo
 *~
 .DS_Store
+
+# AI/ML binary files
+*.pkl
+*.pt
+*.pth
+*.safetensors
 
 # Cache/Logs
 .cache/

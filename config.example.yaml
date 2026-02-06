@@ -1,6 +1,6 @@
 # ComfyUI Viewer Configuration
 #
-# Copy this file to ~/.config/comfy-viewer/config.yaml and customize for your setup.
+# Copy to config.local.yaml and customize for your setup.
 # Environment variables (COMFY_VIEWER_*) override these settings where noted.
 
 # Server settings
