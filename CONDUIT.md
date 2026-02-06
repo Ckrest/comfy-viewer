@@ -31,10 +31,10 @@ Restart ComfyUI after installation.
 
 ### 2. Configure comfy-viewer
 
-Set `COMFY_HOST` if ComfyUI runs on a different address:
+Set `COMFY_VIEWER_COMFY_HOST` if ComfyUI runs on a different address:
 
 ```bash
-export COMFY_HOST=http://192.168.1.100:8188
+export COMFY_VIEWER_COMFY_HOST=http://192.168.1.100:8188
 ```
 
 ## How It Works
@@ -79,7 +79,7 @@ Hooks are loaded in alphabetical order. The built-in `_default.py` hook extracts
 
 1. **Check ComfyUI is running**: `curl http://localhost:8188/conduit/workflows`
 2. **Check Conduit is installed**: Look for `conduit` in ComfyUI's custom_nodes
-3. **Check the URL**: Set `COMFY_HOST` if ComfyUI is on a different host/port
+3. **Check the URL**: Set `COMFY_VIEWER_COMFY_HOST` if ComfyUI is on a different host/port
 
 ### Images not appearing immediately
 

@@ -14,12 +14,21 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from . import config as app_config
+# hooks is a runtime directory at package root
+import sys
+from pathlib import Path
+# Add package root to path for hooks import
+_pkg_root = Path(__file__).parent.parent.parent
+if str(_pkg_root) not in sys.path:
+    sys.path.insert(0, str(_pkg_root))
 from hooks import run_all as run_hooks
 
 log = logging.getLogger("comfy-viewer.registrations")
 
-# Database location
-DB_PATH = Path(__file__).parent / "registrations.db"
+# Database location (cross-platform data dir)
+_config = app_config.load_config()
+DB_PATH = Path(_config.get("data_dir", Path.home() / ".local/share/comfy-viewer")) / "registrations.db"
 
 # ─────────────────────────────────────────────────────────────
 # Shared Event Processing Logic
@@ -127,6 +136,7 @@ class RegistrationStore:
     def _init_db(self):
         """Initialize database schema."""
         with self._db_lock:
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
             conn = self._get_conn()
             try:
                 conn.executescript("""

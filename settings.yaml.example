@@ -1,21 +1,26 @@
 # ComfyUI Viewer Configuration
 #
-# Copy this file to settings.yaml and customize for your setup.
-# Environment variables override these settings where noted.
+# Copy this file to ~/.config/comfy-viewer/config.yaml and customize for your setup.
+# Environment variables (COMFY_VIEWER_*) override these settings where noted.
 
 # Server settings
 host: 0.0.0.0
 port: 5000  # Or set COMFY_VIEWER_PORT
 
 # ComfyUI connection
-# Override with COMFY_HOST environment variable
+# Override with COMFY_VIEWER_COMFY_HOST environment variable
 comfy_host: http://127.0.0.1:8188
 
 # Directories
-# Override with COMFY_OUTPUT_DIR and QUICKSAVES_DIR environment variables
-output_dir: ./output              # Path to ComfyUI output directory
-quicksaves_dir: ./quicksaves      # Path to save quicksave images
+# Override with COMFY_VIEWER_OUTPUT_DIR and COMFY_VIEWER_QUICKSAVES_DIR
+data_dir: ~/.local/share/comfy-viewer
+cache_dir: ~/.cache/comfy-viewer
+output_dir: ~/.local/share/comfy-viewer/output
+quicksaves_dir: ~/.local/share/comfy-viewer/quicksaves
 templates_dir: workflows
+
+# Optional external hooks directory
+# hooks_dir: ~/.config/comfy-viewer/hooks
 
 # Generation settings
 randomize_seed: true

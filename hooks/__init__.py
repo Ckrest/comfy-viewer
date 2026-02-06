@@ -27,10 +27,28 @@ import importlib.util
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 log = logging.getLogger("comfy-viewer.hooks")
 
 HOOKS_DIR = Path(__file__).parent
+EXTRA_HOOKS_DIR: Optional[Path] = None
+
+
+def set_extra_hooks_dir(path: Optional[Path]) -> None:
+    """Override or clear the external hooks directory."""
+    global EXTRA_HOOKS_DIR
+    if path is None:
+        EXTRA_HOOKS_DIR = None
+    else:
+        EXTRA_HOOKS_DIR = Path(path)
+
+
+def _hook_dirs() -> list[Path]:
+    dirs = [HOOKS_DIR]
+    if EXTRA_HOOKS_DIR:
+        dirs.append(EXTRA_HOOKS_DIR)
+    return dirs
 
 
 def _load_module(name: str, file_path: Path, is_package: bool = False):
@@ -68,23 +86,27 @@ def _get_hooks() -> list[tuple[str, Path, bool]]:
     Returns:
         List of (hook_name, hook_file_path, is_package) tuples
     """
-    hooks = []
+    hooks_by_name: dict[str, tuple[str, Path, bool]] = {}
 
-    # Find single-file hooks (*.py, skip __*.py like __init__.py)
-    for hook_file in HOOKS_DIR.glob("*.py"):
-        if hook_file.name.startswith("__"):
+    for hook_dir in _hook_dirs():
+        if not hook_dir.exists() or not hook_dir.is_dir():
             continue
-        hooks.append((hook_file.stem, hook_file, False))
 
-    # Find hook packages (folders with __init__.py)
-    for item in HOOKS_DIR.iterdir():
-        if item.is_dir() and not item.name.startswith("__"):
-            init_file = item / "__init__.py"
-            if init_file.exists():
-                hooks.append((item.name, init_file, True))
+        # Find single-file hooks (*.py, skip __*.py like __init__.py)
+        for hook_file in hook_dir.glob("*.py"):
+            if hook_file.name.startswith("__"):
+                continue
+            hooks_by_name[hook_file.stem] = (hook_file.stem, hook_file, False)
+
+        # Find hook packages (folders with __init__.py)
+        for item in hook_dir.iterdir():
+            if item.is_dir() and not item.name.startswith("__"):
+                init_file = item / "__init__.py"
+                if init_file.exists():
+                    hooks_by_name[item.name] = (item.name, init_file, True)
 
     # Sort by hook name (alphabetically)
-    return sorted(hooks, key=lambda x: x[0])
+    return sorted(hooks_by_name.values(), key=lambda x: x[0])
 
 
 def run_all(folder_path: Path, current_data: dict) -> dict:

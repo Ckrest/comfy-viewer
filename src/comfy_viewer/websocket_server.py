@@ -12,7 +12,7 @@ from typing import Optional
 from flask import Flask
 from flask_socketio import SocketIO, emit
 
-from state import get_state_manager
+from .state import get_state_manager
 
 log = logging.getLogger("comfy-viewer.websocket")
 

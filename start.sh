@@ -14,4 +14,4 @@ else
 fi
 
 # Run the app
-python app.py
+./comfy-viewer

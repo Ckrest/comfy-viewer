@@ -4,16 +4,16 @@ Thumbnail Generation and Caching
 Generates and caches thumbnails for images, following a similar pattern
 to the freedesktop.org thumbnail spec but simplified for our use case.
 
-Cache location: ~/.cache/comfy-viewer/thumbnails/
+Cache location: platform cache dir /comfy-viewer/thumbnails/
 """
 
 import hashlib
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
 from PIL import Image
+from platformdirs import user_cache_dir
 
 log = logging.getLogger("comfy-viewer.thumbnails")
 
@@ -22,9 +22,8 @@ THUMBNAIL_SIZE = (256, 256)  # Max dimensions (aspect ratio preserved)
 THUMBNAIL_QUALITY = 85  # JPEG/WebP quality
 THUMBNAIL_FORMAT = "WEBP"  # Small file size, good quality
 
-# Cache directory (respects XDG_CACHE_HOME on Linux)
-_cache_base = Path(os.getenv("XDG_CACHE_HOME", Path.home() / ".cache"))
-CACHE_DIR = _cache_base / "comfy-viewer" / "thumbnails"
+# Cache directory (cross-platform)
+CACHE_DIR = Path(user_cache_dir("comfy-viewer")) / "thumbnails"
 
 
 def get_cache_path(image_path: Path) -> Path:

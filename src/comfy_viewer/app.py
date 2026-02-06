@@ -11,44 +11,25 @@ import json
 import logging
 import os
 import random
-import shutil
 import uuid
-from collections import OrderedDict
 from pathlib import Path
 
-import yaml
 from flask import Flask, jsonify, request, render_template, send_from_directory, Response
 
-from state import get_state_manager
-from comfy_client import get_comfy_client
-from websocket_server import init_socketio
-from file_watcher import start_watching, stop_watching
-from thumbnails import get_thumbnail, get_thumbnail_for_bytes, generate_all_thumbnails, get_cache_stats, cleanup_orphaned_thumbnails, CACHE_DIR
-from registrations import get_store, select_preferred_image, get_relative_image_path
+from . import config as app_config
+from .version import __version__
+from .state import get_state_manager
+from .comfy_client import get_comfy_client
+from .websocket_server import init_socketio
+from .thumbnails import get_thumbnail, get_thumbnail_for_bytes, generate_all_thumbnails, get_cache_stats, cleanup_orphaned_thumbnails, CACHE_DIR
+from .registrations import get_store, select_preferred_image, get_relative_image_path
+# subscribers is a runtime directory at package root
 from subscribers import start_subscribers, stop_subscribers
-from file_service import get_file_service, reset_file_service, FileService
+from .file_service import get_file_service, reset_file_service, FileService
 
 # ─────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────
-
-BASE_DIR = Path(__file__).parent.resolve()
-
-DEFAULT_CONFIG = {
-    "host": "0.0.0.0",
-    "port": 5000,
-    "comfy_host": os.getenv("COMFY_HOST", "http://127.0.0.1:8188"),
-    "templates_dir": "workflows",
-    "quicksaves_dir": "quicksaves",
-    "output_dir": "output",
-    "randomize_seed": True,
-    # File backend: "local" or "remote"
-    "file_backend": "local",
-    # Remote server URL (only used when file_backend is "remote")
-    "remote_url": None,
-    # Polling interval in seconds (for remote backend change detection)
-    "poll_interval": 2.0,
-}
 
 # Conduit integration messages (centralized for easy customization)
 # Conduit is required for workflow runner and real-time features.
@@ -60,26 +41,10 @@ CONDUIT_MESSAGES = {
 }
 
 
-def load_config() -> dict:
-    """Load configuration from settings.yaml."""
-    config = DEFAULT_CONFIG.copy()
-    config_path = BASE_DIR / "settings.yaml"
-
-    if config_path.exists():
-        with open(config_path, "r") as f:
-            user_config = yaml.safe_load(f) or {}
-        config.update(user_config)
-
-    # Resolve relative paths
-    for key in ["templates_dir", "quicksaves_dir", "output_dir"]:
-        path = Path(config[key])
-        if not path.is_absolute():
-            config[key] = str(BASE_DIR / path)
-
-    return config
-
-
-CONFIG = load_config()
+CONFIG = app_config.load_config()
+if CONFIG.get("hooks_dir"):
+    from hooks import set_extra_hooks_dir
+    set_extra_hooks_dir(Path(CONFIG["hooks_dir"]))
 
 # ─────────────────────────────────────────────────────────────
 # Logging
@@ -95,7 +60,14 @@ log = logging.getLogger("comfy-viewer")
 # Flask App
 # ─────────────────────────────────────────────────────────────
 
-app = Flask(__name__)
+# Get package root directory (parent of src/)
+PACKAGE_ROOT = Path(__file__).parent.parent.parent
+
+app = Flask(
+    __name__,
+    template_folder=str(PACKAGE_ROOT / "templates"),
+    static_folder=str(PACKAGE_ROOT / "static")
+)
 socketio = init_socketio(app)
 
 # Global instances
@@ -494,13 +466,10 @@ def api_config():
 
     else:  # POST
         data = request.get_json() or {}
-        config_path = BASE_DIR / "settings.yaml"
+        config_path = app_config.resolve_config_path()
 
         # Load existing config
-        existing = {}
-        if config_path.exists():
-            with open(config_path, "r") as f:
-                existing = yaml.safe_load(f) or {}
+        existing = app_config.read_config_file(config_path)
 
         # Update with new values
         updated = False
@@ -524,12 +493,24 @@ def api_config():
 
         if updated:
             # Save config
-            with open(config_path, "w") as f:
-                yaml.dump(existing, f, default_flow_style=False)
+            app_config.write_config(existing, config_path)
 
-            # Restart file watcher with new output dir
-            stop_watching()
-            start_watching(OUTPUT_DIR, on_new_image, delete_callback=on_deleted_image)
+            # Reset file service singleton to pick up new paths
+            reset_file_service()
+
+            # Update CONFIG dict to stay in sync
+            CONFIG["output_dir"] = str(OUTPUT_DIR)
+            CONFIG["quicksaves_dir"] = str(QUICKSAVES_DIR)
+
+            # Recreate file service with updated config
+            global file_service
+            file_service = get_file_service(CONFIG)
+
+            # Start watching on new file_service
+            file_service.watch_changes(
+                on_created=on_new_image_from_service,
+                on_deleted=on_deleted_image_from_service,
+            )
 
             log.info(f"Config updated - output_dir: {OUTPUT_DIR}, quicksaves_dir: {QUICKSAVES_DIR}")
 
@@ -553,7 +534,7 @@ def api_client_config():
     """
     return jsonify({
         "thumbnail_size": 256,
-        "version": "1.0.0",
+        "version": __version__,
     })
 
 
@@ -575,26 +556,74 @@ GALLERY_UI_DEFAULTS = {
 @app.route("/api/settings", methods=["GET", "POST"])
 def api_settings():
     """Get or update application settings."""
+    global OUTPUT_DIR, QUICKSAVES_DIR, file_service
     store = get_store()
 
     if request.method == "POST":
-        # Save settings to database
         data = request.get_json() or {}
+
+        # Check if path settings are being changed
+        paths_changed = False
+        config_path = app_config.resolve_config_path()
+
+        # Load existing file config
+        existing_file_config = app_config.read_config_file(config_path)
+
+        # Handle output_dir change
+        if "output_dir" in data:
+            new_path = Path(data["output_dir"])
+            if new_path.exists() and new_path.is_dir():
+                existing_file_config["output_dir"] = str(new_path)
+                OUTPUT_DIR = new_path
+                paths_changed = True
+            else:
+                return jsonify({"error": f"Directory not found: {data['output_dir']}"}), 400
+
+        # Handle quicksaves_dir change
+        if "quicksaves_dir" in data:
+            new_path = Path(data["quicksaves_dir"])
+            new_path.mkdir(parents=True, exist_ok=True)
+            existing_file_config["quicksaves_dir"] = str(new_path)
+            QUICKSAVES_DIR = new_path
+            paths_changed = True
+
+        # If paths changed, persist to file and reset file service
+        if paths_changed:
+            app_config.write_config(existing_file_config, config_path)
+
+            # Reset file service singleton
+            reset_file_service()
+            CONFIG["output_dir"] = str(OUTPUT_DIR)
+            CONFIG["quicksaves_dir"] = str(QUICKSAVES_DIR)
+            file_service = get_file_service(CONFIG)
+            file_service.watch_changes(
+                on_created=on_new_image_from_service,
+                on_deleted=on_deleted_image_from_service,
+            )
+            log.info(f"Settings updated - output_dir: {OUTPUT_DIR}, quicksaves_dir: {QUICKSAVES_DIR}")
+
+        # Save all settings to database (including non-path settings)
         store.set_setting("app_settings", json.dumps(data))
         return jsonify({"success": True})
 
-    # GET - return current settings (merged: defaults < config file < database overrides)
+    # GET - return current settings
     saved_json = store.get_setting("app_settings")
     saved = json.loads(saved_json) if saved_json else {}
 
+    # Remove path keys from saved to prevent stale database values from overriding
+    # actual runtime values. The runtime globals (OUTPUT_DIR, QUICKSAVES_DIR) are
+    # authoritative since they reflect what file_service is actually watching.
+    display_saved = {k: v for k, v in saved.items()
+                     if k not in ("output_dir", "quicksaves_dir")}
+
     return jsonify({
-        # Current server values (from config file)
+        # Actual runtime values (authoritative)
         "output_dir": str(OUTPUT_DIR),
         "quicksaves_dir": str(QUICKSAVES_DIR),
         "comfy_host": CONFIG.get("comfy_host", "http://127.0.0.1:8188"),
         "server_port": CONFIG.get("port", 5000),
-        # Include any saved overrides
-        **saved
+        # Other saved settings (UI preferences, etc.)
+        **display_saved
     })
 
 
@@ -1413,27 +1442,6 @@ def on_deleted_image_from_service(filename: str):
         # Notify connected clients by refreshing the image list
         registrations, total = store.get_all(0, 50)
         state.set_images(registrations, total)
-
-
-# Legacy callbacks for backward compatibility with old file_watcher module
-def on_new_image(filepath, file_info):
-    """Legacy callback - converts to new format."""
-    from file_service import ImageInfo
-    info = ImageInfo(
-        filename=file_info["filename"],
-        size=file_info["size"],
-        modified=file_info["modified"],
-    )
-    on_new_image_from_service(file_info["filename"], info)
-
-
-def on_deleted_image(filepath):
-    """Legacy callback - converts to new format."""
-    try:
-        relative_path = str(filepath.relative_to(OUTPUT_DIR))
-    except ValueError:
-        relative_path = filepath.name
-    on_deleted_image_from_service(relative_path)
 
 
 # ─────────────────────────────────────────────────────────────

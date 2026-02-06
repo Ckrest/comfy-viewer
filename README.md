@@ -44,13 +44,13 @@ source venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 
 # Copy and configure settings
-cp settings.yaml.example settings.yaml
-# Edit settings.yaml with your paths
+cp settings.yaml.example ~/.config/comfy-viewer/config.yaml
+# Edit config.yaml with your paths
 ```
 
 ## Configuration
 
-Copy `settings.yaml.example` to `settings.yaml` and configure:
+Copy `settings.yaml.example` to `~/.config/comfy-viewer/config.yaml` and configure:
 
 ```yaml
 # ComfyUI connection
@@ -63,13 +63,15 @@ quicksaves_dir: /path/to/quicksaves
 
 ### Environment Variables
 
-These override settings.yaml values:
+These override config file values (`~/.config/comfy-viewer/config.yaml`):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `COMFY_HOST` | ComfyUI server URL | `http://127.0.0.1:8188` |
-| `COMFY_OUTPUT_DIR` | Output directory path | from settings.yaml |
-| `QUICKSAVES_DIR` | Quicksaves directory | from settings.yaml |
+| `COMFY_VIEWER_COMFY_HOST` | ComfyUI server URL | `http://127.0.0.1:8188` |
+| `COMFY_VIEWER_DATA_DIR` | Base directory for persistent data | platform data dir |
+| `COMFY_VIEWER_CACHE_DIR` | Base directory for cache files | platform cache dir |
+| `COMFY_VIEWER_OUTPUT_DIR` | Output directory path | from config file |
+| `COMFY_VIEWER_QUICKSAVES_DIR` | Quicksaves directory | from config file |
 
 ## Usage
 
@@ -78,7 +80,7 @@ These override settings.yaml values:
 source venv/bin/activate
 
 # Run the server
-python app.py
+./comfy-viewer
 ```
 
 Open http://localhost:5000 in your browser.
@@ -117,9 +119,12 @@ Hooks run in alphabetical order. See `hooks/_default.py` for an example.
 
 ```
 comfy-viewer/
+├── comfy-viewer           # CLI entry point
 ├── app.py                 # Main Flask application
-├── settings.yaml          # Configuration (gitignored)
+├── cli.py                 # CLI helpers (introspection + server)
+├── config.py              # Configuration loader
 ├── settings.yaml.example  # Configuration template
+├── version.py             # Package version
 ├── requirements.txt       # Python dependencies
 ├── templates/             # HTML templates
 │   ├── viewer.html        # Single image view

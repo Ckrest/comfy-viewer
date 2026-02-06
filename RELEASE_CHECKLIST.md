@@ -10,8 +10,6 @@ Things to verify/update before publishing to GitHub.
 ## Files to Verify Are Gitignored
 
 These should NOT appear in git status after a fresh clone:
-
-- [ ] `settings.yaml` (user config)
 - [ ] `registrations.db` (user data)
 - [ ] `hooks/*.py` except `__init__.py` and `_default.py`
 - [ ] `subscribers/*.py` except `__init__.py`
@@ -39,8 +37,8 @@ These should NOT appear in git status after a fresh clone:
   cd comfy-viewer
   python -m venv venv && source venv/bin/activate
   pip install -r requirements.txt
-  cp settings.yaml.example settings.yaml
-  python app.py
+  cp settings.yaml.example ~/.config/comfy-viewer/config.yaml
+  ./comfy-viewer
   ```
 - [ ] Viewer page loads (`/`)
 - [ ] Library page loads (`/library`)
@@ -59,6 +57,6 @@ These should NOT appear in git status after a fresh clone:
 
 After cloning for personal use, remember to:
 
-1. Copy `settings.yaml.example` to `settings.yaml` and configure paths
+1. Copy `settings.yaml.example` to `~/.config/comfy-viewer/config.yaml` and configure paths
 2. Add custom hooks to `hooks/` folder
 3. Add custom subscribers to `subscribers/` folder (e.g., redis_subscriber.py)

@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 import requests
 import websocket
 
-from state import get_state_manager
+from .state import get_state_manager
 
 log = logging.getLogger("comfy-viewer.comfy_client")
 
