@@ -1,6 +1,6 @@
 # Conduit Integration
 
-comfy-viewer has optional integration with [Conduit](https://github.com/NickPittas/ComfyUI-Conduit), a ComfyUI workflow gateway that simplifies running and managing workflows.
+comfy-viewer has optional integration with [Conduit](https://github.com/Ckrest/comfyui-conduit), a ComfyUI workflow gateway that simplifies running and managing workflows.
 
 ## What Conduit Enables
 
@@ -24,7 +24,7 @@ With Conduit, you also get:
 
 ```bash
 cd /path/to/ComfyUI/custom_nodes
-git clone https://github.com/NickPittas/ComfyUI-Conduit.git
+git clone https://github.com/Ckrest/comfyui-conduit.git
 ```
 
 Restart ComfyUI after installation.

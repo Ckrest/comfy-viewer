@@ -14,7 +14,7 @@ A web-based image viewer and workflow manager for ComfyUI.
 
 ### Optional: Conduit Integration
 
-> **Note**: The workflow runner and real-time features require [ComfyUI-Conduit](https://github.com/NickPittas/ComfyUI-Conduit) to be installed in ComfyUI. Without it, comfy-viewer works as a standalone gallery.
+> **Note**: The workflow runner and real-time features require [ComfyUI-Conduit](https://github.com/Ckrest/comfyui-conduit) to be installed in ComfyUI. Without it, comfy-viewer works as a standalone gallery.
 
 With Conduit installed, you also get:
 - **Workflow Runner**: Browse and run workflows directly from the UI

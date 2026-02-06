@@ -67,7 +67,7 @@ Note: Service file not in repo - create locally or copy from Systems.
 
 **Standalone mode**: Works as a gallery viewer for any ComfyUI output directory.
 
-**With Conduit**: When [ComfyUI-Conduit](https://github.com/NickPittas/ComfyUI-Conduit) is installed:
+**With Conduit**: When [ComfyUI-Conduit](https://github.com/Ckrest/comfyui-conduit) is installed:
 - Workflow browser and runner
 - Rich metadata (character names, semantic tags)
 - Real-time updates on generation complete

@@ -33,10 +33,10 @@ from .file_service import get_file_service, reset_file_service, FileService
 
 # Conduit integration messages (centralized for easy customization)
 # Conduit is required for workflow runner and real-time features.
-# Install from: https://github.com/NickPittas/ComfyUI-Conduit
+# Install from: https://github.com/Ckrest/comfyui-conduit
 CONDUIT_MESSAGES = {
     "error": "Conduit not available",
-    "hint": "Install ComfyUI-Conduit to enable workflow features: https://github.com/NickPittas/ComfyUI-Conduit",
+    "hint": "Install ComfyUI-Conduit to enable workflow features: https://github.com/Ckrest/comfyui-conduit",
     "docs": "See CONDUIT.md for detailed setup instructions.",
 }
 
@@ -988,7 +988,7 @@ def api_generate():
 # ─────────────────────────────────────────────────────────────
 # These endpoints require ComfyUI-Conduit to be installed in ComfyUI.
 # Without Conduit, these return 503 errors with installation instructions.
-# Install: https://github.com/NickPittas/ComfyUI-Conduit
+# Install: https://github.com/Ckrest/comfyui-conduit
 # ─────────────────────────────────────────────────────────────
 
 @app.route("/api/conduit/status")

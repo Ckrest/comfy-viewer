@@ -5,7 +5,7 @@ Things to verify/update before publishing to GitHub.
 ## Placeholders to Replace
 
 - [x] **README.md**: Git clone URL uses `Ckrest/comfy-viewer`
-- [ ] **CONDUIT.md**: Verify GitHub URL is correct (`NickPittas/ComfyUI-Conduit`)
+- [x] **CONDUIT.md**: GitHub URL uses `Ckrest/comfyui-conduit`
 
 ## Files to Verify Are Gitignored
 
