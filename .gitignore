@@ -1,18 +1,8 @@
-# ──────────────────────────────────────────────────────────────
-# Systems integration (managed by Systems repo, not package repo)
-# ──────────────────────────────────────────────────────────────
 pkg/
-
-# ──────────────────────────────────────────────────────────────
-# Database
-# ──────────────────────────────────────────────────────────────
+quicksaves/
 registrations.db
 *.db
 *.sqlite3
-
-# ──────────────────────────────────────────────────────────────
-# Python
-# ──────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
@@ -22,36 +12,22 @@ venv/
 *.egg-info/
 dist/
 build/
-
-# User config
 settings.yaml
 config.local.yaml
 *.local.yaml
-
-# User/Systems hooks
 hooks.local/
-
-# Secrets
 .env
-
-# Node.js
 node_modules/
-
-# IDE/Editor
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
-
-# AI/ML binary files
 *.pkl
 *.pt
 *.pth
 *.safetensors
-
-# Cache/Logs
 .cache/
 *.log
 *.pid
