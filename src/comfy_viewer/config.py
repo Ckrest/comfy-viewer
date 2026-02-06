@@ -10,6 +10,8 @@ from platformdirs import user_config_dir, user_data_dir, user_cache_dir
 
 ENV_PREFIX = "COMFY_VIEWER"
 PACKAGE_DIR = Path(__file__).parent.resolve()
+PACKAGE_ROOT = PACKAGE_DIR.parent.parent
+LOCAL_CONFIG_PATH = PACKAGE_ROOT / "config.local.yaml"
 CONFIG_DIR = Path(user_config_dir("comfy-viewer"))
 DEFAULT_CONFIG_PATH = CONFIG_DIR / "config.yaml"
 DATA_DIR = Path(user_data_dir("comfy-viewer"))
@@ -59,7 +61,14 @@ def _config_path_from_env() -> Optional[Path]:
 
 
 def resolve_config_path(config_path: Optional[Path] = None) -> Path:
-    return config_path or _config_path_from_env() or DEFAULT_CONFIG_PATH
+    if config_path:
+        return config_path
+    env_path = _config_path_from_env()
+    if env_path:
+        return env_path
+    if LOCAL_CONFIG_PATH.exists():
+        return LOCAL_CONFIG_PATH
+    return DEFAULT_CONFIG_PATH
 
 
 def _load_config_file(path: Path, strict: bool = False) -> dict:

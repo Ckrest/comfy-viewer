@@ -53,6 +53,16 @@ def create_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print resolved configuration as JSON and exit",
     )
+    parser.add_argument(
+        "--print-event-catalog",
+        action="store_true",
+        help="Print event catalog as JSON and exit",
+    )
+    parser.add_argument(
+        "--print-lifecycle",
+        action="store_true",
+        help="Print lifecycle points as JSON and exit",
+    )
 
     return parser
 
@@ -94,6 +104,28 @@ def _handle_introspection(args: argparse.Namespace) -> Optional[int]:
 
     if args.print_resolved:
         _emit_json(app_config.load_config(config_path=config_path))
+        return 0
+
+    if args.print_event_catalog:
+        _emit_json({"catalog": [
+            {"event_type": "operation.completed", "lifecycle_point": "artifact.created",
+             "data_fields": ["registration_id", "image_path", "source", "metadata"]},
+            {"event_type": "artifact.created", "lifecycle_point": "artifact.created",
+             "data_fields": ["file_path", "file_type", "registration_id"]},
+            {"event_type": "watch.detected", "lifecycle_point": "watch.triggered",
+             "data_fields": ["file_path", "watch_type"]},
+            {"event_type": "config.resolved", "lifecycle_point": "config.loaded",
+             "data_fields": ["config_path", "host", "port"]},
+            {"event_type": "error.handled", "lifecycle_point": "error.occurred",
+             "data_fields": ["error_type", "message", "context"]},
+        ]})
+        return 0
+
+    if args.print_lifecycle:
+        _emit_json({"points": [
+            "startup", "config.loaded", "request.received",
+            "artifact.created", "watch.triggered", "error.occurred", "shutdown",
+        ]})
         return 0
 
     return None

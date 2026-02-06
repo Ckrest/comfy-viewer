@@ -17,7 +17,6 @@ from typing import Optional
 from . import config as app_config
 # hooks is a runtime directory at package root
 import sys
-from pathlib import Path
 # Add package root to path for hooks import
 _pkg_root = Path(__file__).parent.parent.parent
 if str(_pkg_root) not in sys.path:

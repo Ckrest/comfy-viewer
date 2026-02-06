@@ -2249,7 +2249,7 @@
 
     // Load Socket.IO and connect
     const script = document.createElement('script');
-    script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+    script.src = '/static/js/vendor/socket.io.min.js';
     script.onload = () => ws.connect();
     document.head.appendChild(script);
   </script>

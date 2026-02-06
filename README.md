@@ -140,7 +140,8 @@ comfy-viewer/
 ├── static/                   # CSS, JS assets
 ├── hooks/                    # Metadata extraction hooks
 │   ├── __init__.py           # Hook loader
-│   └── _default.py           # Default PNG metadata hook
+│   ├── _default.py           # Default PNG metadata hook
+│   └── conduit/              # Conduit metadata extraction
 ├── subscribers/              # Event subscriber plugins
 │   └── __init__.py           # Subscriber loader + docs
 └── CONDUIT.md                # Conduit integration guide

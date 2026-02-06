@@ -58,14 +58,16 @@ def _load_module(name: str, file_path: Path, is_package: bool = False):
     """
     Dynamically load a Python module from a file path.
 
-    For packages (is_package=True), adds the package directory to sys.path
-    temporarily so relative imports work.
+    For packages (is_package=True), adds the package's parent directory to
+    sys.path so relative imports work. This handles packages from hooks/,
+    hooks.local/, or external hook directories.
     """
     if is_package:
-        # Add the hooks directory to sys.path so submodule imports work
-        hooks_dir_str = str(HOOKS_DIR)
-        if hooks_dir_str not in sys.path:
-            sys.path.insert(0, hooks_dir_str)
+        # Add the parent dir (the hook directory containing this package)
+        # to sys.path so submodule imports work
+        parent_dir_str = str(file_path.parent.parent)
+        if parent_dir_str not in sys.path:
+            sys.path.insert(0, parent_dir_str)
 
         # For packages, use the package name as the module name
         spec = importlib.util.spec_from_file_location(

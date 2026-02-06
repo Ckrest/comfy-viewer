@@ -17,6 +17,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, render_template, send_from_directory, Response
 
 from . import config as app_config
+from .emit import emit, configure as emit_configure
 from .version import __version__
 from .state import get_state_manager
 from .comfy_client import get_comfy_client
@@ -42,6 +43,12 @@ CONDUIT_MESSAGES = {
 
 
 CONFIG = app_config.load_config()
+emit_configure("comfy-viewer")
+emit("config.resolved", {
+    "config_path": str(CONFIG.get("_config_path", "")),
+    "host": CONFIG.get("host", "0.0.0.0"),
+    "port": CONFIG.get("port", 5000),
+})
 if CONFIG.get("hooks_dir"):
     from hooks import set_extra_hooks_dir
     set_extra_hooks_dir(Path(CONFIG["hooks_dir"]))
@@ -979,6 +986,7 @@ def api_generate():
         return jsonify({"error": "Template not found"}), 404
     except Exception as e:
         log.error(f"Generation failed: {e}")
+        emit("error.handled", {"error_type": type(e).__name__, "message": str(e), "context": "generation"})
         state.cancel_generation()
         return jsonify({"error": str(e)}), 500
 
@@ -1367,6 +1375,17 @@ def api_conduit_event():
             image_count += 1
             log.info(f"Conduit: registered {relative_path} "
                      f"(tag={selected_tag}, title={mapped_reg.get('title', {}).get('value')})")
+            emit("artifact.created", {
+                "file_path": relative_path,
+                "file_type": filepath.suffix.lstrip("."),
+                "registration_id": reg["id"],
+            })
+            emit("operation.completed", {
+                "registration_id": reg["id"],
+                "image_path": relative_path,
+                "source": "conduit",
+                "metadata": {"tag_name": selected_tag},
+            })
 
     return jsonify({
         "success": True,
@@ -1396,6 +1415,7 @@ def on_new_image_from_service(filename: str, image_info):
         return
 
     log.info(f"New image detected by file service: {filename}")
+    emit("watch.detected", {"file_path": filename, "watch_type": "file_service"})
 
     # For local backend, get the folder path for hooks
     local_path = file_service.get_image_path(filename)
