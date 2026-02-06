@@ -32,7 +32,7 @@ See [CONDUIT.md](CONDUIT.md) for setup instructions.
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/comfy-viewer.git
+git clone https://github.com/Ckrest/comfy-viewer.git
 cd comfy-viewer
 
 # Create virtual environment
@@ -44,13 +44,13 @@ source venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 
 # Copy and configure settings
-cp settings.yaml.example ~/.config/comfy-viewer/config.yaml
-# Edit config.yaml with your paths
+cp config.example.yaml config.local.yaml
+# Edit config.local.yaml with your paths
 ```
 
 ## Configuration
 
-Copy `settings.yaml.example` to `~/.config/comfy-viewer/config.yaml` and configure:
+Copy `config.example.yaml` to `config.local.yaml` and configure:
 
 ```yaml
 # ComfyUI connection
@@ -63,7 +63,7 @@ quicksaves_dir: /path/to/quicksaves
 
 ### Environment Variables
 
-These override config file values (`~/.config/comfy-viewer/config.yaml`):
+These override config file values:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -119,23 +119,31 @@ Hooks run in alphabetical order. See `hooks/_default.py` for an example.
 
 ```
 comfy-viewer/
-├── comfy-viewer           # CLI entry point
-├── app.py                 # Main Flask application
-├── cli.py                 # CLI helpers (introspection + server)
-├── config.py              # Configuration loader
-├── settings.yaml.example  # Configuration template
-├── version.py             # Package version
-├── requirements.txt       # Python dependencies
-├── templates/             # HTML templates
-│   ├── viewer.html        # Single image view
-│   └── library.html       # Grid view + workflows
-├── static/                # CSS, JS, images
-├── hooks/                 # Metadata extraction hooks
-│   ├── __init__.py        # Hook loader
-│   └── _default.py        # Default PNG metadata hook
-├── subscribers/           # Custom event subscribers (gitignored)
-│   └── __init__.py        # Subscriber loader
-└── CONDUIT.md             # Conduit integration guide
+├── comfy-viewer              # CLI entry point
+├── config.example.yaml       # Configuration template
+├── requirements.txt          # Python dependencies
+├── start.sh                  # Quick-start script
+├── src/comfy_viewer/         # Python package
+│   ├── app.py                # Main Flask application
+│   ├── cli.py                # CLI helpers (introspection + server)
+│   ├── config.py             # Configuration loader
+│   ├── comfy_client.py       # ComfyUI WebSocket client
+│   ├── file_service.py       # File operations + thumbnails
+│   ├── registrations.py      # Image registration database
+│   ├── state.py              # Shared application state
+│   ├── thumbnails.py         # Thumbnail generation
+│   ├── version.py            # Package version
+│   └── websocket_server.py   # WebSocket push to browser
+├── templates/                # HTML templates
+│   ├── viewer.html           # Single image view
+│   └── library.html          # Grid view + workflows
+├── static/                   # CSS, JS assets
+├── hooks/                    # Metadata extraction hooks
+│   ├── __init__.py           # Hook loader
+│   └── _default.py           # Default PNG metadata hook
+├── subscribers/              # Event subscriber plugins
+│   └── __init__.py           # Subscriber loader + docs
+└── CONDUIT.md                # Conduit integration guide
 ```
 
 ## License

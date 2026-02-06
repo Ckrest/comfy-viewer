@@ -4,16 +4,16 @@ Things to verify/update before publishing to GitHub.
 
 ## Placeholders to Replace
 
-- [ ] **README.md line 36**: `YOUR_USERNAME` in git clone URL
+- [x] **README.md**: Git clone URL uses `Ckrest/comfy-viewer`
 - [ ] **CONDUIT.md**: Verify GitHub URL is correct (`NickPittas/ComfyUI-Conduit`)
 
 ## Files to Verify Are Gitignored
 
 These should NOT appear in git status after a fresh clone:
 - [ ] `registrations.db` (user data)
-- [ ] `hooks/*.py` except `__init__.py` and `_default.py`
-- [ ] `subscribers/*.py` except `__init__.py`
-- [ ] `.system/` (local registry metadata)
+- [ ] `hooks.local/` (user/integration hooks)
+- [ ] `config.local.yaml` (user config overrides)
+- [ ] `registrations.db` gets recreated on startup
 
 ## Code Quality
 
@@ -37,7 +37,7 @@ These should NOT appear in git status after a fresh clone:
   cd comfy-viewer
   python -m venv venv && source venv/bin/activate
   pip install -r requirements.txt
-  cp settings.yaml.example ~/.config/comfy-viewer/config.yaml
+  cp config.example.yaml config.local.yaml
   ./comfy-viewer
   ```
 - [ ] Viewer page loads (`/`)
@@ -57,6 +57,6 @@ These should NOT appear in git status after a fresh clone:
 
 After cloning for personal use, remember to:
 
-1. Copy `settings.yaml.example` to `~/.config/comfy-viewer/config.yaml` and configure paths
+1. Copy `config.example.yaml` to `~/.config/comfy-viewer/config.yaml` and configure paths
 2. Add custom hooks to `hooks/` folder
 3. Add custom subscribers to `subscribers/` folder (e.g., redis_subscriber.py)

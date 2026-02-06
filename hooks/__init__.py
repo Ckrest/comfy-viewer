@@ -32,6 +32,7 @@ from typing import Optional
 log = logging.getLogger("comfy-viewer.hooks")
 
 HOOKS_DIR = Path(__file__).parent
+HOOKS_LOCAL_DIR = HOOKS_DIR.parent / "hooks.local"
 EXTRA_HOOKS_DIR: Optional[Path] = None
 
 
@@ -46,6 +47,8 @@ def set_extra_hooks_dir(path: Optional[Path]) -> None:
 
 def _hook_dirs() -> list[Path]:
     dirs = [HOOKS_DIR]
+    if HOOKS_LOCAL_DIR.is_dir():
+        dirs.append(HOOKS_LOCAL_DIR)
     if EXTRA_HOOKS_DIR:
         dirs.append(EXTRA_HOOKS_DIR)
     return dirs

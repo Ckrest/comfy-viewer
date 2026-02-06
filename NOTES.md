@@ -12,8 +12,8 @@ cd /path/to/comfy-viewer
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp settings.yaml.example ~/.config/comfy-viewer/config.yaml
-# Edit config.yaml with your paths
+cp config.example.yaml config.local.yaml
+# Edit config.local.yaml with your paths
 
 # Run directly
 source venv/bin/activate
@@ -29,7 +29,7 @@ journalctl --user -u comfy-viewer -f
 
 ## Path Dependencies
 
-Configuration is in `~/.config/comfy-viewer/config.yaml`. Key paths:
+Configuration is in `config.local.yaml` (or `~/.config/comfy-viewer/config.yaml` via platformdirs). Key paths:
 
 | Setting | Description |
 |---------|-------------|
@@ -61,7 +61,7 @@ Note: Service file not in repo - create locally or copy from Systems.
 - **file_watcher.py**: Watchdog-based directory monitoring
 - **comfy_client.py**: ComfyUI WebSocket client
 - **hooks/**: Extensible metadata extraction (PNG chunks, etc.)
-- **subscribers/**: Event handlers (gitignored, user-specific)
+- **subscribers/**: Event subscriber plugins (auto-discovered at startup)
 
 ## Integration Points
 
