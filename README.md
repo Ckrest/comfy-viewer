@@ -1,6 +1,6 @@
 # ComfyUI Viewer
 
-A web-based image viewer and workflow manager for ComfyUI.
+A web-based local image viewer with realtime updates and optional remote workflow manager for ComfyUI.
 
 ## Features
 
@@ -14,12 +14,11 @@ A web-based image viewer and workflow manager for ComfyUI.
 
 ### Optional: Conduit Integration
 
-> **Note**: The workflow runner and real-time features require [ComfyUI-Conduit](https://github.com/Ckrest/comfyui-conduit) to be installed in ComfyUI. Without it, comfy-viewer works as a standalone gallery.
+> **Note**: The workflow runner requires [ComfyUI-Conduit](https://github.com/Ckrest/comfyui-conduit) to be installed in ComfyUI. Without it, comfy-viewer works as a standalone gallery, able to view a live feed of images, but not trigger remote generation.
 
 With Conduit installed, you also get:
 - **Workflow Runner**: Browse and run workflows directly from the UI
-- **Rich Metadata**: Character names, prompts, and semantic tags (CharImg, FinalImage)
-- **Instant Updates**: New images appear immediately when generation completes
+- **Rich Metadata**: Better accses to setting image names, prompts, and semantic tags
 
 See [CONDUIT.md](CONDUIT.md) for setup instructions.
 
