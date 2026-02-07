@@ -40,8 +40,8 @@ python -m venv venv
 source venv/bin/activate  # Linux/macOS
 # or: venv\Scripts\activate  # Windows
 
-# Install dependencies
-pip install -r requirements.txt
+# Install the package
+pip install -e .
 
 # Copy and configure settings
 cp config.example.yaml config.local.yaml
@@ -80,7 +80,7 @@ These override config file values:
 source venv/bin/activate
 
 # Run the server
-./comfy-viewer
+comfy-viewer
 ```
 
 Open http://localhost:5000 in your browser.
@@ -120,15 +120,16 @@ Hooks run in alphabetical order. See `hooks/_default.py` for an example.
 ```
 comfy-viewer/
 ├── comfy-viewer              # CLI entry point
+├── pyproject.toml            # Package metadata and dependencies
 ├── config.example.yaml       # Configuration template
-├── requirements.txt          # Python dependencies
 ├── start.sh                  # Quick-start script
 ├── src/comfy_viewer/         # Python package
 │   ├── app.py                # Main Flask application
 │   ├── cli.py                # CLI helpers (introspection + server)
-│   ├── config.py             # Configuration loader
 │   ├── comfy_client.py       # ComfyUI WebSocket client
-│   ├── file_service.py       # File operations + thumbnails
+│   ├── config.py             # Configuration loader
+│   ├── emit.py               # Structured event emission
+│   ├── file_service.py       # File operations (local + remote)
 │   ├── registrations.py      # Image registration database
 │   ├── state.py              # Shared application state
 │   ├── thumbnails.py         # Thumbnail generation
@@ -139,11 +140,11 @@ comfy-viewer/
 │   └── library.html          # Grid view + workflows
 ├── static/                   # CSS, JS assets
 ├── hooks/                    # Metadata extraction hooks
-│   ├── __init__.py           # Hook loader
+│   ├── __init__.py           # Hook loader + lifecycle dispatch
 │   ├── _default.py           # Default PNG metadata hook
 │   └── conduit/              # Conduit metadata extraction
-├── subscribers/              # Event subscriber plugins
-│   └── __init__.py           # Subscriber loader + docs
+│       └── plugins/          # Pluggable extractors (scene_gen, etc.)
+├── hooks.local/              # User/integration hooks (gitignored)
 └── CONDUIT.md                # Conduit integration guide
 ```
 
