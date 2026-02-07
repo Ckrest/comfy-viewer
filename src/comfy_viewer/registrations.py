@@ -15,13 +15,19 @@ from pathlib import Path
 from typing import Optional
 
 from . import config as app_config
-# hooks is a runtime directory at package root
+# hooks is a runtime directory at package root - bootstrap as a package
 import sys
-# Add package root to path for hooks import
-_pkg_root = Path(__file__).parent.parent.parent
-if str(_pkg_root) not in sys.path:
-    sys.path.insert(0, str(_pkg_root))
-from hooks import run_all as run_hooks
+import importlib.util
+_hooks_dir = Path(__file__).parent.parent.parent / "hooks"
+_spec = importlib.util.spec_from_file_location(
+    "comfy_viewer_hooks",
+    _hooks_dir / "__init__.py",
+    submodule_search_locations=[str(_hooks_dir)]
+)
+_hooks_mod = importlib.util.module_from_spec(_spec)
+sys.modules["comfy_viewer_hooks"] = _hooks_mod
+_spec.loader.exec_module(_hooks_mod)
+run_hooks = _hooks_mod.run_all
 
 log = logging.getLogger("comfy-viewer.registrations")
 

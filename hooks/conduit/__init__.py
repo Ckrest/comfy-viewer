@@ -11,9 +11,12 @@ Behavior:
 This hook runs after _default.py and can override its values.
 """
 
+import logging
 from pathlib import Path
 
-from .plugins import load_plugin, get_all_plugins
+from .plugins import load_plugin, get_all_plugins, read_charstr
+
+log = logging.getLogger("comfy-viewer.hooks.conduit")
 
 
 def extract(folder_path: Path, current_data: dict) -> dict:
@@ -54,7 +57,7 @@ def _fallback_extract(folder_path: Path, current_data: dict) -> dict:
     result = {}
 
     # Try to get char_str from CharStr.txt
-    char_str = _read_charstr(folder_path)
+    char_str = read_charstr(folder_path)
     if char_str:
         result["char_str"] = char_str
 
@@ -65,20 +68,8 @@ def _fallback_extract(folder_path: Path, current_data: dict) -> dict:
             if plugin_result and plugin_result.get("prompt"):
                 result["prompt"] = plugin_result["prompt"]
                 break
-        except Exception:
+        except Exception as e:
+            log.debug(f"Plugin '{plugin_name}' failed during fallback: {e}")
             continue
 
     return result
-
-
-def _read_charstr(folder_path: Path) -> str | None:
-    """Read CharStr.txt if it exists."""
-    charstr_file = folder_path / "CharStr.txt"
-    if charstr_file.exists():
-        try:
-            content = charstr_file.read_text().strip()
-            if content:
-                return content
-        except Exception:
-            pass
-    return None

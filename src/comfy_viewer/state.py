@@ -11,7 +11,6 @@ import threading
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Callable, Optional
-from collections import OrderedDict
 
 log = logging.getLogger("comfy-viewer.state")
 

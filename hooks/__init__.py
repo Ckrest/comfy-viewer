@@ -1,5 +1,5 @@
 """
-Hook Manager for Registration Data Extraction
+Hook Manager for Registration Data Extraction & Lifecycle
 
 Hooks can be:
 1. Single Python files (e.g., `_default.py`) with an `extract()` function
@@ -8,19 +8,12 @@ Hooks can be:
 Hooks run in alphabetical order. Later hooks can override earlier hooks' values.
 Use `_` prefix to control ordering (e.g., `_default.py` runs before `conduit/`).
 
-Hook Interface:
-    def extract(folder_path: Path, current_data: dict) -> dict:
-        '''
-        Called during registration.
+Extract Interface (registration-time):
+    def extract(folder_path: Path, current_data: dict) -> dict
 
-        Args:
-            folder_path: Path to folder containing the image
-            current_data: Data collected so far (image_path, source, caller_context, etc.)
-
-        Returns:
-            Dict of additional data to merge into registration
-        '''
-        return {"key": "value"}
+Lifecycle Interface (startup/shutdown):
+    def on_startup(context: dict) -> None
+    def on_shutdown(context: dict) -> None
 """
 
 import importlib.util
@@ -58,28 +51,22 @@ def _load_module(name: str, file_path: Path, is_package: bool = False):
     """
     Dynamically load a Python module from a file path.
 
-    For packages (is_package=True), adds the package's parent directory to
-    sys.path so relative imports work. This handles packages from hooks/,
-    hooks.local/, or external hook directories.
+    Modules are registered under comfy_viewer_hooks.{name} to avoid
+    polluting sys.modules with bare names like "conduit" or "_default".
     """
-    if is_package:
-        # Add the parent dir (the hook directory containing this package)
-        # to sys.path so submodule imports work
-        parent_dir_str = str(file_path.parent.parent)
-        if parent_dir_str not in sys.path:
-            sys.path.insert(0, parent_dir_str)
+    qualified_name = f"comfy_viewer_hooks.{name}"
 
-        # For packages, use the package name as the module name
+    if is_package:
         spec = importlib.util.spec_from_file_location(
-            name,
+            qualified_name,
             file_path,
             submodule_search_locations=[str(file_path.parent)]
         )
     else:
-        spec = importlib.util.spec_from_file_location(name, file_path)
+        spec = importlib.util.spec_from_file_location(qualified_name, file_path)
 
     module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module  # Register so submodule imports can find it
+    sys.modules[qualified_name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -150,3 +137,43 @@ def run_all(folder_path: Path, current_data: dict) -> dict:
 def list_hooks() -> list[str]:
     """Return list of available hook names."""
     return [name for name, _, _ in _get_hooks()]
+
+
+# ─────────────────────────────────────────────────────────────
+# Lifecycle hooks (startup / shutdown)
+# ─────────────────────────────────────────────────────────────
+
+_lifecycle_modules: list = []
+
+
+def run_lifecycle(point: str, context: dict) -> None:
+    """
+    Run lifecycle hooks across all hook directories.
+
+    Scans hooks/, hooks.local/, and extra dirs for modules with
+    an on_{point}(context) function and calls them in order.
+    """
+    fn_name = f"on_{point}"
+
+    for hook_name, hook_file, is_package in _get_hooks():
+        try:
+            module = _load_module(hook_name, hook_file, is_package)
+            if hasattr(module, fn_name):
+                getattr(module, fn_name)(context)
+                if module not in _lifecycle_modules:
+                    _lifecycle_modules.append(module)
+                log.info(f"Lifecycle '{point}': {hook_name}")
+        except Exception as e:
+            log.error(f"Lifecycle hook '{hook_name}' failed on {point}: {e}")
+
+
+def shutdown_lifecycle() -> None:
+    """Call on_shutdown on all modules that participated in lifecycle."""
+    for module in _lifecycle_modules:
+        try:
+            if hasattr(module, "on_shutdown"):
+                module.on_shutdown({})
+                log.info(f"Shutdown: {module.__name__}")
+        except Exception as e:
+            log.error(f"Shutdown hook '{module.__name__}' failed: {e}")
+    _lifecycle_modules.clear()

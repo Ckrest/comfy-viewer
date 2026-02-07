@@ -75,3 +75,16 @@ def get_all_plugins() -> list[tuple[str, object]]:
             log.error(f"Failed to load plugin '{name}': {e}")
 
     return plugins
+
+
+def read_charstr(folder_path: Path) -> str | None:
+    """Read CharStr.txt if it exists."""
+    charstr_file = folder_path / "CharStr.txt"
+    if charstr_file.exists():
+        try:
+            content = charstr_file.read_text().strip()
+            if content:
+                return content
+        except Exception:
+            pass
+    return None

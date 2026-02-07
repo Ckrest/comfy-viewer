@@ -24,8 +24,6 @@ from .comfy_client import get_comfy_client
 from .websocket_server import init_socketio
 from .thumbnails import get_thumbnail, get_thumbnail_for_bytes, generate_all_thumbnails, get_cache_stats, cleanup_orphaned_thumbnails, CACHE_DIR
 from .registrations import get_store, select_preferred_image, get_relative_image_path
-# subscribers is a runtime directory at package root
-from subscribers import start_subscribers, stop_subscribers
 from .file_service import get_file_service, reset_file_service, FileService
 
 # ─────────────────────────────────────────────────────────────
@@ -50,7 +48,7 @@ emit("config.resolved", {
     "port": CONFIG.get("port", 5000),
 })
 if CONFIG.get("hooks_dir"):
-    from hooks import set_extra_hooks_dir
+    from comfy_viewer_hooks import set_extra_hooks_dir
     set_extra_hooks_dir(Path(CONFIG["hooks_dir"]))
 
 # ─────────────────────────────────────────────────────────────
@@ -1403,7 +1401,7 @@ def on_new_image_from_service(filename: str, image_info):
     """
     Called when a new image is detected by the file service.
 
-    This callback is used by both local (inotify) and remote (polling) backends.
+    Used by both local (inotify) and remote file service backends.
 
     Args:
         filename: Image filename (relative to output dir)
@@ -1560,10 +1558,14 @@ def initialize():
         on_deleted=on_deleted_image_from_service,
     )
 
-    # Start custom event subscribers (from subscribers/ folder)
-    # Drop Python files in subscribers/ to add custom event sources (e.g., Redis, MQTT)
+    # Run lifecycle startup hooks (hooks.local/ can inject transport like Redis)
     if file_service.get_backend_type() == "local":
-        start_subscribers(OUTPUT_DIR, store.register, state.add_image)
+        from comfy_viewer_hooks import run_lifecycle
+        run_lifecycle("startup", {
+            "output_dir": OUTPUT_DIR,
+            "register": store.register,
+            "add_image": state.add_image,
+        })
 
     backend_type = file_service.get_backend_type()
     log.info(f"Initialized with {len(templates)} templates, {total} images")
@@ -1577,7 +1579,8 @@ def initialize():
 def shutdown():
     """Clean shutdown."""
     log.info("Shutting down...")
-    stop_subscribers()
+    from comfy_viewer_hooks import shutdown_lifecycle
+    shutdown_lifecycle()
     file_service.stop_watching()
     comfy.disconnect_websocket()
 

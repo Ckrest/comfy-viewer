@@ -291,11 +291,19 @@ class LocalFileService(FileService):
         if self.templates_dir:
             log.info(f"Templates directory: {self.templates_dir}")
 
+    def _safe_path(self, filename: str) -> Optional[Path]:
+        """Resolve filename and ensure it stays within output_dir."""
+        path = (self.output_dir / filename).resolve()
+        if not path.is_relative_to(self.output_dir.resolve()):
+            log.warning(f"Path traversal attempt blocked: {filename}")
+            return None
+        return path
+
     def list_images(self, subdirectory: str = "") -> list[ImageInfo]:
         """List images in the output directory."""
-        target_dir = self.output_dir / subdirectory if subdirectory else self.output_dir
+        target_dir = self._safe_path(subdirectory) if subdirectory else self.output_dir
 
-        if not target_dir.exists():
+        if target_dir is None or not target_dir.exists():
             return []
 
         images = []
@@ -311,9 +319,8 @@ class LocalFileService(FileService):
 
     def get_image(self, filename: str) -> Optional[bytes]:
         """Read image file content."""
-        path = self.output_dir / filename
-
-        if not path.exists() or not path.is_file():
+        path = self._safe_path(filename)
+        if path is None or not path.exists() or not path.is_file():
             return None
 
         try:
@@ -324,9 +331,8 @@ class LocalFileService(FileService):
 
     def stream_image(self, filename: str, chunk_size: int = 8192) -> Iterator[bytes]:
         """Stream image content in chunks."""
-        path = self.output_dir / filename
-
-        if not path.exists() or not path.is_file():
+        path = self._safe_path(filename)
+        if path is None or not path.exists() or not path.is_file():
             return
 
         try:
@@ -338,22 +344,21 @@ class LocalFileService(FileService):
 
     def get_image_info(self, filename: str) -> Optional[ImageInfo]:
         """Get metadata for a specific image."""
-        path = self.output_dir / filename
-
-        if not path.exists() or not path.is_file():
+        path = self._safe_path(filename)
+        if path is None or not path.exists() or not path.is_file():
             return None
 
         return self._get_image_info_from_path(path)
 
     def image_exists(self, filename: str) -> bool:
         """Check if an image exists."""
-        path = self.output_dir / filename
-        return path.exists() and path.is_file()
+        path = self._safe_path(filename)
+        return path is not None and path.exists() and path.is_file()
 
     def get_image_path(self, filename: str) -> Optional[Path]:
         """Get local path for an image."""
-        path = self.output_dir / filename
-        if path.exists():
+        path = self._safe_path(filename)
+        if path is not None and path.exists():
             return path
         return None
 
@@ -361,7 +366,10 @@ class LocalFileService(FileService):
         """Copy an image to a local destination."""
         import shutil
 
-        source = self.output_dir / filename
+        source = self._safe_path(filename)
+        if source is None:
+            log.warning(f"Blocked copy of invalid path: {filename}")
+            return False
 
         if not source.exists():
             log.warning(f"Source image not found: {filename}")

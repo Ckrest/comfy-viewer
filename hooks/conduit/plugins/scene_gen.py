@@ -13,6 +13,19 @@ Reads:
 from pathlib import Path
 
 
+def _read_charstr(folder_path: Path) -> str | None:
+    """Read CharStr.txt if it exists."""
+    charstr_file = folder_path / "CharStr.txt"
+    if charstr_file.exists():
+        try:
+            content = charstr_file.read_text().strip()
+            if content:
+                return content
+        except Exception:
+            pass
+    return None
+
+
 def extract(folder_path: Path, current_data: dict) -> dict:
     """
     Extract data for SceneGen generations.
@@ -37,19 +50,6 @@ def extract(folder_path: Path, current_data: dict) -> dict:
         result["prompt"] = prompt
 
     return result
-
-
-def _read_charstr(folder_path: Path) -> str | None:
-    """Read CharStr.txt if it exists."""
-    charstr_file = folder_path / "CharStr.txt"
-    if charstr_file.exists():
-        try:
-            content = charstr_file.read_text().strip()
-            if content:
-                return content
-        except Exception:
-            pass
-    return None
 
 
 def _read_st_metadata(folder_path: Path) -> str | None:

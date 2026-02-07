@@ -41,9 +41,20 @@ export COMFY_VIEWER_COMFY_HOST=http://192.168.1.100:8188
 
 ### Event Flow
 
+**Path 1 — File watching (standalone):**
+1. ComfyUI saves an image to the output directory
+2. File watcher (inotify) detects the new file
+3. Image is registered and appears in the gallery
+
+**Path 2 — Conduit events (via event bus or direct POST):**
 1. You run a workflow via the Library page or ComfyUI directly
-2. Conduit captures the outputs and notifies comfy-viewer via HTTP
-3. The new image is registered and appears in the gallery instantly
+2. Conduit captures tagged outputs to `output/conduit/{prompt_id}/`
+3. A completion event is delivered to `POST /api/conduit-event`
+4. The image is registered with full metadata and appears instantly
+
+Path 2 can be driven by any system that POSTs the correct JSON to
+`/api/conduit-event`. For example, a lifecycle hook in `hooks.local/`
+can subscribe to an event bus and forward matching events.
 
 ### API Endpoints
 
@@ -83,9 +94,10 @@ Hooks are loaded in alphabetical order. The built-in `_default.py` hook extracts
 
 ### Images not appearing immediately
 
-1. **Check Conduit configuration**: Ensure Conduit is configured to notify comfy-viewer
-2. **Check logs**: Look for "Conduit" messages in comfy-viewer output
-3. **File watching fallback**: Images will still appear via file watching (slight delay)
+1. **Check the event delivery**: Look for "Forwarded conduit event" in comfy-viewer logs
+2. **Check Conduit handler**: Ensure Conduit's handler ran successfully (check ComfyUI console)
+3. **Check the API directly**: `curl -X POST http://localhost:5000/api/conduit-event -H 'Content-Type: application/json' -d '{"prompt_id":"test","outputs":[]}'`
+4. **File watching fallback**: Images saved directly to the output root still appear via inotify (but conduit subfolder images require the API path)
 
 ### Workflow inputs not loading
 
