@@ -6,7 +6,7 @@ Extensible: call add_handler() to add Redis, database, or custom transports.
 
 This file is vendored per-package. It has NO external dependencies.
 
-Event format (matches Systems infra/events/publisher.py schema):
+Event format:
     {"event_type": "...", "timestamp": "...", "source": {"tool": "..."}, "data": {...}}
 
 Events are always single-line JSON on stderr, distinguishable from log lines.
@@ -75,7 +75,7 @@ def emit(
     except Exception:
         pass
 
-    # Additional handlers (injected by Systems or user at startup)
+    # Additional handlers (added via add_handler() at startup)
     for handler in _handlers:
         try:
             handler(event)
