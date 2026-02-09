@@ -5,6 +5,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dynamic = ["version"]
+authors = [{name = "Ckrest"}]
 dependencies = [
     "flask>=2.0.0",
     "flask-socketio>=5.3.0",
