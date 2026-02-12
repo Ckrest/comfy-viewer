@@ -1374,15 +1374,20 @@ def api_conduit_event():
             log.info(f"Conduit: registered {relative_path} "
                      f"(tag={selected_tag}, title={mapped_reg.get('title', {}).get('value')})")
             emit("artifact.created", {
-                "file_path": relative_path,
+                "file_path": str(filepath.resolve()),
                 "file_type": filepath.suffix.lstrip("."),
                 "registration_id": reg["id"],
             })
             emit("operation.completed", {
+                "operation_type": "image_registration",
+                "operation_id": str(prompt_id),
                 "registration_id": reg["id"],
-                "image_path": relative_path,
+                "image_path": str(filepath.resolve()),
                 "source": "conduit",
-                "metadata": {"tag_name": selected_tag},
+                "metadata": {
+                    "tag_name": selected_tag,
+                    "relative_path": relative_path,
+                },
             })
 
     return jsonify({

@@ -109,7 +109,7 @@ def _handle_introspection(args: argparse.Namespace) -> Optional[int]:
     if args.print_event_catalog:
         _emit_json({"catalog": [
             {"event_type": "operation.completed", "lifecycle_point": "artifact.created",
-             "data_fields": ["registration_id", "image_path", "source", "metadata"]},
+             "data_fields": ["operation_type", "operation_id", "registration_id", "image_path", "source", "metadata"]},
             {"event_type": "artifact.created", "lifecycle_point": "artifact.created",
              "data_fields": ["file_path", "file_type", "registration_id"]},
             {"event_type": "watch.detected", "lifecycle_point": "watch.triggered",

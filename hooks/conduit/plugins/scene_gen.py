@@ -20,7 +20,7 @@ def _read_charstr(folder_path: Path) -> str | None:
         try:
             content = charstr_file.read_text().strip()
             if content:
-                return content
+                return _clean_char_str(content)
         except Exception:
             pass
     return None
@@ -48,6 +48,10 @@ def extract(folder_path: Path, current_data: dict) -> dict:
     prompt = _read_st_metadata(folder_path)
     if prompt:
         result["prompt"] = prompt
+        if not result.get("char_str"):
+            inferred = _infer_char_str_from_prompt(prompt)
+            if inferred:
+                result["char_str"] = inferred
 
     return result
 
@@ -65,3 +69,28 @@ def _read_st_metadata(folder_path: Path) -> str | None:
             pass
 
     return None
+
+
+def _clean_char_str(value: str | None) -> str | None:
+    """Filter out placeholder error strings from CharStr.txt."""
+    if not value:
+        return None
+    text = value.strip()
+    lower = text.lower()
+    if lower.startswith("[file not found:") or lower.startswith("file not found:"):
+        return None
+    return text
+
+
+def _infer_char_str_from_prompt(prompt: str) -> str | None:
+    """Infer a display title from prompt text when CharStr.txt is missing/invalid."""
+    if not prompt:
+        return None
+    tokens = [token.strip() for token in prompt.replace("\n", ",").split(",") if token.strip()]
+    if not tokens:
+        return None
+    if tokens[0].lower().startswith("embedding:") and len(tokens) > 1:
+        candidate = tokens[1]
+    else:
+        candidate = tokens[0]
+    return _clean_char_str(candidate)

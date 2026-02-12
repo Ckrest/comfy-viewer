@@ -1,7 +1,7 @@
 # ComfyUI Viewer Configuration
 #
 # Copy to config.local.yaml (same directory) and customize for your setup.
-# Alternatively, place at ~/.config/comfy-viewer/config.yaml
+# Alternatively, place in your platform's config directory.
 # Environment variables (COMFY_VIEWER_*) override these settings where noted.
 
 # Server settings
@@ -12,16 +12,16 @@ port: 5000  # Or set COMFY_VIEWER_PORT
 # Override with COMFY_VIEWER_COMFY_HOST environment variable
 comfy_host: http://127.0.0.1:8188
 
-# Directories
+# Directories (auto-detected for your platform, uncomment to override)
 # Override with COMFY_VIEWER_OUTPUT_DIR and COMFY_VIEWER_QUICKSAVES_DIR
-data_dir: ~/.local/share/comfy-viewer
-cache_dir: ~/.cache/comfy-viewer
-output_dir: ~/.local/share/comfy-viewer/output
-quicksaves_dir: ~/.local/share/comfy-viewer/quicksaves
+# data_dir:
+# cache_dir:
+# output_dir:
+# quicksaves_dir:
 templates_dir: workflows
 
-# Optional external hooks directory
-# hooks_dir: ~/.config/comfy-viewer/hooks
+# Optional external hooks directory (uncomment to override)
+# hooks_dir:
 
 # Generation settings
 randomize_seed: true

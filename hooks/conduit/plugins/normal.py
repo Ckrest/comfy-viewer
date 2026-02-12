@@ -27,7 +27,7 @@ def extract(folder_path: Path, current_data: dict) -> dict:
     result = {}
 
     # char_str from CharStr.txt
-    char_str = _read_file(folder_path / "CharStr.txt")
+    char_str = _clean_char_str(_read_file(folder_path / "CharStr.txt"))
     if char_str:
         result["char_str"] = char_str
 
@@ -35,6 +35,10 @@ def extract(folder_path: Path, current_data: dict) -> dict:
     prompt = _read_file(folder_path / "metadata.txt")
     if prompt:
         result["prompt"] = prompt
+        if not result.get("char_str"):
+            inferred = _infer_char_str_from_prompt(prompt)
+            if inferred:
+                result["char_str"] = inferred
 
     return result
 
@@ -49,3 +53,35 @@ def _read_file(file_path: Path) -> str | None:
         except Exception:
             pass
     return None
+
+
+def _clean_char_str(value: str | None) -> str | None:
+    """Filter out placeholder error strings from CharStr.txt."""
+    if not value:
+        return None
+    text = value.strip()
+    lower = text.lower()
+    if lower.startswith("[file not found:") or lower.startswith("file not found:"):
+        return None
+    return text
+
+
+def _infer_char_str_from_prompt(prompt: str) -> str | None:
+    """
+    Infer a display title from prompt text when CharStr.txt is missing/invalid.
+
+    Uses the first likely subject token, typically right after embedding tags.
+    """
+    if not prompt:
+        return None
+    tokens = [token.strip() for token in prompt.replace("\n", ",").split(",") if token.strip()]
+    if not tokens:
+        return None
+
+    if tokens[0].lower().startswith("embedding:") and len(tokens) > 1:
+        candidate = tokens[1]
+    else:
+        candidate = tokens[0]
+
+    cleaned = _clean_char_str(candidate)
+    return cleaned

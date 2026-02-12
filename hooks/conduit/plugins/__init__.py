@@ -84,7 +84,18 @@ def read_charstr(folder_path: Path) -> str | None:
         try:
             content = charstr_file.read_text().strip()
             if content:
-                return content
+                return _clean_char_str(content)
         except Exception:
             pass
     return None
+
+
+def _clean_char_str(value: str | None) -> str | None:
+    """Filter out placeholder error strings from CharStr.txt."""
+    if not value:
+        return None
+    text = value.strip()
+    lower = text.lower()
+    if lower.startswith("[file not found:") or lower.startswith("file not found:"):
+        return None
+    return text

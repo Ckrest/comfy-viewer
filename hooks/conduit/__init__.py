@@ -61,12 +61,23 @@ def _fallback_extract(folder_path: Path, current_data: dict) -> dict:
     if char_str:
         result["char_str"] = char_str
 
-    # Try all plugins for prompt data
+    # Try all plugins for prompt/char_str fallback data
     for plugin_name, plugin in get_all_plugins():
         try:
             plugin_result = plugin.extract(folder_path, current_data)
-            if plugin_result and plugin_result.get("prompt"):
-                result["prompt"] = plugin_result["prompt"]
+            if not plugin_result:
+                continue
+
+            plugin_char = plugin_result.get("char_str")
+            if plugin_char and not result.get("char_str"):
+                result["char_str"] = plugin_char
+
+            plugin_prompt = plugin_result.get("prompt")
+            if plugin_prompt and not result.get("prompt"):
+                result["prompt"] = plugin_prompt
+
+            # Stop once we have both key fields
+            if result.get("char_str") and result.get("prompt"):
                 break
         except Exception as e:
             log.debug(f"Plugin '{plugin_name}' failed during fallback: {e}")
