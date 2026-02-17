@@ -479,7 +479,7 @@ def api_config():
         # Update with new values
         updated = False
 
-        if "output_dir" in data:
+        if data.get("output_dir"):
             new_path = Path(data["output_dir"])
             if new_path.exists() and new_path.is_dir():
                 existing["output_dir"] = str(new_path)
@@ -488,7 +488,7 @@ def api_config():
             else:
                 return jsonify({"error": f"Directory not found: {data['output_dir']}"}), 400
 
-        if "quicksaves_dir" in data:
+        if data.get("quicksaves_dir"):
             new_path = Path(data["quicksaves_dir"])
             # Create if doesn't exist
             new_path.mkdir(parents=True, exist_ok=True)
@@ -574,8 +574,8 @@ def api_settings():
         # Load existing file config
         existing_file_config = app_config.read_config_file(config_path)
 
-        # Handle output_dir change
-        if "output_dir" in data:
+        # Handle output_dir change (skip empty strings from UI defaults)
+        if data.get("output_dir"):
             new_path = Path(data["output_dir"])
             if new_path.exists() and new_path.is_dir():
                 existing_file_config["output_dir"] = str(new_path)
@@ -584,8 +584,8 @@ def api_settings():
             else:
                 return jsonify({"error": f"Directory not found: {data['output_dir']}"}), 400
 
-        # Handle quicksaves_dir change
-        if "quicksaves_dir" in data:
+        # Handle quicksaves_dir change (skip empty strings from UI defaults)
+        if data.get("quicksaves_dir"):
             new_path = Path(data["quicksaves_dir"])
             new_path.mkdir(parents=True, exist_ok=True)
             existing_file_config["quicksaves_dir"] = str(new_path)
@@ -1281,7 +1281,20 @@ def api_quick_save():
         return jsonify({"error": "Image not found"}), 404
 
     try:
-        dest = QUICKSAVES_DIR / filename
+        # Flatten to just the filename — image_path may include subdirectories
+        # (e.g. "conduit/abc123/CharImg.png") but quicksaves should be flat.
+        base_name = Path(filename).name
+        dest = QUICKSAVES_DIR / base_name
+
+        # Avoid overwriting: append numeric suffix if file exists
+        if dest.exists():
+            stem = dest.stem
+            suffix = dest.suffix
+            counter = 1
+            while dest.exists():
+                dest = QUICKSAVES_DIR / f"{stem}_{counter}{suffix}"
+                counter += 1
+
         success = file_service.copy_image(filename, dest)
 
         if success:
