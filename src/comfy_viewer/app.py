@@ -1386,11 +1386,6 @@ def api_conduit_event():
             image_count += 1
             log.info(f"Conduit: registered {relative_path} "
                      f"(tag={selected_tag}, title={mapped_reg.get('title', {}).get('value')})")
-            emit("artifact.created", {
-                "file_path": str(filepath.resolve()),
-                "file_type": filepath.suffix.lstrip("."),
-                "registration_id": reg["id"],
-            })
             emit("operation.completed", {
                 "operation_type": "image_registration",
                 "operation_id": str(prompt_id),
