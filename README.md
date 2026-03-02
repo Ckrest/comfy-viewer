@@ -89,6 +89,13 @@ Open http://localhost:5000 in your browser.
 - **Viewer** (`/`): Single image view with navigation
 - **Library** (`/library`): Grid view with workflow runner
 
+### Thumbnail Sizing
+
+- Library tile size now controls generated thumbnail size.
+- Thumbnail endpoint accepts optional `size` query:
+  - `/thumbnails/<filename>?size=small|medium|large|xlarge`
+- Cache entries are stored per image + size to avoid regenerating when switching sizes.
+
 ### Keyboard Shortcuts (Viewer)
 
 | Key | Action |

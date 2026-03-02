@@ -18,7 +18,14 @@ from platformdirs import user_cache_dir
 log = logging.getLogger("comfy-viewer.thumbnails")
 
 # Thumbnail settings
-THUMBNAIL_SIZE = (256, 256)  # Max dimensions (aspect ratio preserved)
+THUMBNAIL_TILE_SIZES = {
+    "small": 120,
+    "medium": 180,
+    "large": 250,
+    "xlarge": 350,
+}
+THUMBNAIL_DEFAULT_SIZE = "medium"
+THUMBNAIL_RENDER_SCALE = 2.0
 THUMBNAIL_QUALITY = 85  # JPEG/WebP quality
 THUMBNAIL_FORMAT = "WEBP"  # Small file size, good quality
 
@@ -26,18 +33,44 @@ THUMBNAIL_FORMAT = "WEBP"  # Small file size, good quality
 CACHE_DIR = Path(user_cache_dir("comfy-viewer")) / "thumbnails"
 
 
-def get_cache_path(image_path: Path) -> Path:
+def normalize_size_preset(size_preset: Optional[str]) -> str:
+    """Normalize size preset, falling back to default."""
+    if size_preset in THUMBNAIL_TILE_SIZES:
+        return str(size_preset)
+    return THUMBNAIL_DEFAULT_SIZE
+
+
+def get_tile_size_px(size_preset: Optional[str]) -> int:
+    """Get tile size in CSS pixels for a preset."""
+    preset = normalize_size_preset(size_preset)
+    return THUMBNAIL_TILE_SIZES[preset]
+
+
+def get_render_size_px(size_preset: Optional[str], scale: float = THUMBNAIL_RENDER_SCALE) -> int:
+    """Get target thumbnail render size in pixels."""
+    tile_size = get_tile_size_px(size_preset)
+    return max(1, int(round(tile_size * scale)))
+
+
+def normalize_thumbnail_pixels(max_size_px: Optional[int]) -> int:
+    """Normalize explicit pixel target, falling back to medium preset target."""
+    if isinstance(max_size_px, int) and max_size_px > 0:
+        return max_size_px
+    return get_render_size_px(THUMBNAIL_DEFAULT_SIZE)
+
+
+def get_cache_path(image_path: Path, max_size_px: Optional[int] = None) -> Path:
     """
     Get the cache path for a thumbnail.
 
-    Uses MD5 hash of the absolute path for the filename,
-    similar to freedesktop.org spec.
+    Uses MD5 hash of the absolute path plus render size for the filename.
     """
     # Hash the absolute path
     path_str = str(image_path.resolve())
     path_hash = hashlib.md5(path_str.encode()).hexdigest()
+    size_px = normalize_thumbnail_pixels(max_size_px)
 
-    return CACHE_DIR / f"{path_hash}.webp"
+    return CACHE_DIR / f"{path_hash}_s{size_px}.webp"
 
 
 def is_thumbnail_valid(image_path: Path, thumb_path: Path) -> bool:
@@ -59,7 +92,11 @@ def is_thumbnail_valid(image_path: Path, thumb_path: Path) -> bool:
         return False
 
 
-def generate_thumbnail(image_path: Path, force: bool = False) -> Optional[Path]:
+def generate_thumbnail(
+    image_path: Path,
+    force: bool = False,
+    max_size_px: Optional[int] = None
+) -> Optional[Path]:
     """
     Generate a thumbnail for an image.
 
@@ -82,7 +119,8 @@ def generate_thumbnail(image_path: Path, force: bool = False) -> Optional[Path]:
         log.debug(f"Unsupported format for thumbnails: {suffix}")
         return None
 
-    thumb_path = get_cache_path(image_path)
+    thumb_size_px = normalize_thumbnail_pixels(max_size_px)
+    thumb_path = get_cache_path(image_path, thumb_size_px)
 
     # Check cache validity
     if not force and is_thumbnail_valid(image_path, thumb_path):
@@ -106,7 +144,7 @@ def generate_thumbnail(image_path: Path, force: bool = False) -> Optional[Path]:
                 img = img.convert('RGB')
 
             # Generate thumbnail (maintains aspect ratio)
-            img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+            img.thumbnail((thumb_size_px, thumb_size_px), Image.Resampling.LANCZOS)
 
             # Save as WebP for good compression
             img.save(thumb_path, format=THUMBNAIL_FORMAT, quality=THUMBNAIL_QUALITY)
@@ -119,16 +157,20 @@ def generate_thumbnail(image_path: Path, force: bool = False) -> Optional[Path]:
         return None
 
 
-def get_thumbnail(image_path: Path) -> Optional[Path]:
+def get_thumbnail(image_path: Path, max_size_px: Optional[int] = None) -> Optional[Path]:
     """
     Get a thumbnail for an image, generating if necessary.
 
     This is the main entry point for getting thumbnails.
     """
-    return generate_thumbnail(image_path, force=False)
+    return generate_thumbnail(image_path, force=False, max_size_px=max_size_px)
 
 
-def get_thumbnail_for_bytes(filename: str, image_data: bytes) -> Optional[bytes]:
+def get_thumbnail_for_bytes(
+    filename: str,
+    image_data: bytes,
+    max_size_px: Optional[int] = None
+) -> Optional[bytes]:
     """
     Generate a thumbnail from image bytes.
 
@@ -146,7 +188,8 @@ def get_thumbnail_for_bytes(filename: str, image_data: bytes) -> Optional[bytes]
 
     # Use filename hash for cache path (consistent with local mode)
     cache_key = hashlib.md5(filename.encode()).hexdigest()
-    thumb_path = CACHE_DIR / f"{cache_key}.webp"
+    thumb_size_px = normalize_thumbnail_pixels(max_size_px)
+    thumb_path = CACHE_DIR / f"{cache_key}_s{thumb_size_px}.webp"
 
     # Check if cached thumbnail exists and is still valid
     # For remote mode, we can't check mtime, so just use if exists
@@ -174,7 +217,7 @@ def get_thumbnail_for_bytes(filename: str, image_data: bytes) -> Optional[bytes]
             img = img.convert('RGB')
 
         # Generate thumbnail
-        img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+        img.thumbnail((thumb_size_px, thumb_size_px), Image.Resampling.LANCZOS)
 
         # Save to cache
         img.save(thumb_path, format=THUMBNAIL_FORMAT, quality=THUMBNAIL_QUALITY)
@@ -192,7 +235,8 @@ def get_thumbnail_for_bytes(filename: str, image_data: bytes) -> Optional[bytes]
 def generate_all_thumbnails(
     source_dir: Path,
     force: bool = False,
-    callback: Optional[callable] = None
+    callback: Optional[callable] = None,
+    max_size_px: Optional[int] = None
 ) -> tuple[int, int]:
     """
     Generate thumbnails for all images in a directory.
@@ -228,7 +272,7 @@ def generate_all_thumbnails(
         if callback:
             callback(i + 1, total, image_path.name)
 
-        result = generate_thumbnail(image_path, force=force)
+        result = generate_thumbnail(image_path, force=force, max_size_px=max_size_px)
 
         if result:
             successful += 1
@@ -271,11 +315,23 @@ def get_cache_stats() -> dict:
     thumbnails = list(CACHE_DIR.glob("*.webp"))
     total_size = sum(t.stat().st_size for t in thumbnails)
 
+    size_counts: dict[str, int] = {}
+    for thumb in thumbnails:
+        stem = thumb.stem
+        marker = "_s"
+        idx = stem.rfind(marker)
+        if idx != -1:
+            size_key = stem[idx + len(marker):]
+        else:
+            size_key = "legacy"
+        size_counts[size_key] = size_counts.get(size_key, 0) + 1
+
     return {
         "count": len(thumbnails),
         "size_bytes": total_size,
         "size_mb": round(total_size / (1024 * 1024), 2),
-        "cache_dir": str(CACHE_DIR)
+        "cache_dir": str(CACHE_DIR),
+        "count_by_size": size_counts,
     }
 
 
@@ -325,11 +381,13 @@ def cleanup_orphaned_thumbnails(
             if p.is_file() and p.suffix.lower() in extensions
         ]
 
-    # Build set of valid thumbnail filenames
-    valid_thumbnails = set()
+    # Build set of valid source hashes. Thumbnail names include optional
+    # size suffixes ("<hash>_s<size>.webp"), but source validity is hash-based.
+    valid_source_hashes = set()
     for img_path in images:
-        thumb_path = get_cache_path(img_path)
-        valid_thumbnails.add(thumb_path.name)
+        path_str = str(img_path.resolve())
+        path_hash = hashlib.md5(path_str.encode()).hexdigest()
+        valid_source_hashes.add(path_hash)
 
     # Scan cached thumbnails and find orphans
     cached_thumbnails = list(CACHE_DIR.glob("*.webp"))
@@ -337,7 +395,9 @@ def cleanup_orphaned_thumbnails(
     kept = 0
 
     for thumb in cached_thumbnails:
-        if thumb.name in valid_thumbnails:
+        stem = thumb.stem
+        source_hash = stem.split("_s", 1)[0]
+        if source_hash in valid_source_hashes:
             kept += 1
         else:
             orphaned.append(thumb)

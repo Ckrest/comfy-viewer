@@ -22,7 +22,19 @@ from .version import __version__
 from .state import get_state_manager
 from .comfy_client import get_comfy_client
 from .websocket_server import init_socketio
-from .thumbnails import get_thumbnail, get_thumbnail_for_bytes, generate_all_thumbnails, get_cache_stats, cleanup_orphaned_thumbnails, CACHE_DIR
+from .thumbnails import (
+    CACHE_DIR,
+    THUMBNAIL_DEFAULT_SIZE,
+    THUMBNAIL_RENDER_SCALE,
+    THUMBNAIL_TILE_SIZES,
+    cleanup_orphaned_thumbnails,
+    generate_all_thumbnails,
+    get_cache_stats,
+    get_render_size_px,
+    get_thumbnail,
+    get_thumbnail_for_bytes,
+    normalize_size_preset,
+)
 from .registrations import get_store, select_preferred_image, get_relative_image_path
 from .file_service import get_file_service, reset_file_service, FileService
 
@@ -283,16 +295,22 @@ def serve_thumbnail(filename):
 
     Generates on-demand if not cached. Works with both local and remote
     file backends - for remote, downloads the image first to generate thumbnail.
+
+    Query params:
+        size: Preset name (small|medium|large|xlarge), defaults to medium
     """
     if not file_service.image_exists(filename):
         return "Image not found", 404
+
+    size_preset = normalize_size_preset(request.args.get("size"))
+    thumb_size_px = get_render_size_px(size_preset)
 
     # For local backend, use the fast path with direct file access
     local_path = file_service.get_image_path(filename)
 
     if local_path:
         # Local mode: direct thumbnail generation from file path
-        thumb_path = get_thumbnail(local_path)
+        thumb_path = get_thumbnail(local_path, max_size_px=thumb_size_px)
         if thumb_path and thumb_path.exists():
             return send_from_directory(thumb_path.parent, thumb_path.name)
         else:
@@ -307,7 +325,7 @@ def serve_thumbnail(filename):
         if image_data is None:
             return "Failed to fetch image", 500
 
-        thumb_data = get_thumbnail_for_bytes(filename, image_data)
+        thumb_data = get_thumbnail_for_bytes(filename, image_data, max_size_px=thumb_size_px)
         if thumb_data:
             return Response(thumb_data, mimetype="image/webp")
         else:
@@ -538,7 +556,10 @@ def api_client_config():
     This ensures the browser only connects to comfy-viewer, never directly to ComfyUI.
     """
     return jsonify({
-        "thumbnail_size": 256,
+        "thumbnail_size": get_render_size_px(THUMBNAIL_DEFAULT_SIZE),
+        "thumbnail_default": THUMBNAIL_DEFAULT_SIZE,
+        "thumbnail_tile_sizes": THUMBNAIL_TILE_SIZES,
+        "thumbnail_render_scale": THUMBNAIL_RENDER_SCALE,
         "version": __version__,
     })
 

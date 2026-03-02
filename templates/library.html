@@ -1252,6 +1252,15 @@
       xlarge: 350
     };
 
+    function getCurrentThumbnailPreset() {
+      const value = librarySettings?.get?.('thumbnail_size');
+      return THUMBNAIL_SIZES[value] ? value : 'medium';
+    }
+
+    function buildThumbnailUrl(filename, preset = getCurrentThumbnailPreset()) {
+      return `/thumbnails/${filename}?size=${encodeURIComponent(preset)}`;
+    }
+
     // Apply Library-specific settings
     function applyLibrarySetting(key, value) {
       switch (key) {
@@ -1259,6 +1268,9 @@
           const grid = document.getElementById('galleryGrid');
           const sizeInPx = THUMBNAIL_SIZES[value] || THUMBNAIL_SIZES.medium;
           if (grid) grid.style.setProperty('--thumbnail-size', `${sizeInPx}px`);
+          document.dispatchEvent(new CustomEvent('library-thumbnail-size-changed', {
+            detail: { preset: THUMBNAIL_SIZES[value] ? value : 'medium' }
+          }));
           break;
         case 'enable_workflows':
           const sidebar = document.getElementById('sidebar');
@@ -1384,6 +1396,10 @@
         // Sidebar toggle
         document.getElementById('sidebarToggle').addEventListener('click', () => this.toggleSidebar());
         document.getElementById('sidebarClose').addEventListener('click', () => this.toggleSidebar());
+
+        document.addEventListener('library-thumbnail-size-changed', (event) => {
+          this.refreshThumbnailSources(event.detail?.preset);
+        });
       },
 
       setupKeyboardShortcuts() {
@@ -2048,6 +2064,25 @@
         await this.loadGallery();
       },
 
+      getThumbnailUrl(filename, preset = getCurrentThumbnailPreset()) {
+        return buildThumbnailUrl(filename, preset);
+      },
+
+      refreshThumbnailSources(preset = getCurrentThumbnailPreset()) {
+        const images = document.querySelectorAll('#galleryGrid .gallery-item img');
+        images.forEach((imgEl) => {
+          const filename = imgEl.dataset.filename || imgEl.alt;
+          if (!filename) return;
+          const nextSrc = this.getThumbnailUrl(filename, preset);
+          const currentUrl = new URL(imgEl.src, window.location.origin);
+          const targetUrl = new URL(nextSrc, window.location.origin);
+          if (currentUrl.pathname === targetUrl.pathname && currentUrl.search === targetUrl.search) return;
+          imgEl.className = 'loading';
+          imgEl.onload = () => imgEl.className = 'loaded';
+          imgEl.src = nextSrc;
+        });
+      },
+
       async loadMoreImages() {
         if (this.isLoading || !this.hasMore) return;
 
@@ -2111,7 +2146,8 @@
           item.onclick = () => window.location.href = `/?image=${encodeURIComponent(img.filename)}`;
 
           const imgEl = document.createElement('img');
-          imgEl.src = `/thumbnails/${img.filename}`;
+          imgEl.dataset.filename = img.filename;
+          imgEl.src = this.getThumbnailUrl(img.filename);
           imgEl.alt = img.filename;
           imgEl.loading = 'lazy';
           imgEl.className = 'loading';
@@ -2222,7 +2258,8 @@
       item.onclick = () => window.location.href = `/?image=${encodeURIComponent(imageData.filename)}`;
 
       const imgEl = document.createElement('img');
-      imgEl.src = `/thumbnails/${imageData.filename}`;
+      imgEl.dataset.filename = imageData.filename;
+      imgEl.src = app.getThumbnailUrl(imageData.filename);
       imgEl.alt = imageData.filename;
       imgEl.loading = 'lazy';
       imgEl.className = 'loading';
