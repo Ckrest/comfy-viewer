@@ -1084,6 +1084,10 @@
       activeImageRequest: 0,
       loadingOlderPage: false,
       loadingNewerPage: false,
+      transitionIndicatorTimer: null,
+      transitionIndicatorVisibleSince: 0,
+      TRANSITION_INDICATOR_DELAY_MS: 120,
+      TRANSITION_INDICATOR_MIN_VISIBLE_MS: 180,
       PAGE_SIZE: 50,
       WINDOW_BEFORE: 25,
       WINDOW_AFTER: 25,
@@ -1129,12 +1133,41 @@
 
       showTransitionIndicator(message = 'Loading next image') {
         const indicator = document.getElementById('transitionIndicator');
+        const delayMs = this.TRANSITION_INDICATOR_DELAY_MS;
+        clearTimeout(this.transitionIndicatorTimer);
         indicator.querySelector('span').textContent = message;
-        indicator.classList.add('active');
+
+        this.transitionIndicatorTimer = setTimeout(() => {
+          this.transitionIndicatorTimer = null;
+          this.transitionIndicatorVisibleSince = Date.now();
+          indicator.classList.add('active');
+        }, delayMs);
       },
 
       hideTransitionIndicator() {
-        document.getElementById('transitionIndicator').classList.remove('active');
+        const indicator = document.getElementById('transitionIndicator');
+        clearTimeout(this.transitionIndicatorTimer);
+        this.transitionIndicatorTimer = null;
+
+        if (!indicator.classList.contains('active')) {
+          this.transitionIndicatorVisibleSince = 0;
+          return;
+        }
+
+        const visibleFor = Date.now() - this.transitionIndicatorVisibleSince;
+        const remaining = Math.max(this.TRANSITION_INDICATOR_MIN_VISIBLE_MS - visibleFor, 0);
+
+        if (remaining === 0) {
+          indicator.classList.remove('active');
+          this.transitionIndicatorVisibleSince = 0;
+          return;
+        }
+
+        this.transitionIndicatorTimer = setTimeout(() => {
+          this.transitionIndicatorTimer = null;
+          indicator.classList.remove('active');
+          this.transitionIndicatorVisibleSince = 0;
+        }, remaining);
       },
 
       applyWindowResponse(data) {
