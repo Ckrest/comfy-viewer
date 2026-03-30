@@ -5,9 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="Comfy Viewer">
+  <meta name="apple-mobile-web-app-title" content="Comfy Viewer">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0d0d0d">
   <title>ComfyUI Viewer</title>
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/static/css/execution-block.css">
   <style>
     /* ═══════════════════════════════════════════════════════════════
@@ -99,7 +102,34 @@
     }
 
     .main-image.loading {
-      opacity: 0.5;
+      opacity: 1;
+    }
+
+    .transition-indicator {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 550;
+      pointer-events: none;
+    }
+
+    .transition-indicator.active {
+      display: flex;
+    }
+
+    .transition-indicator .spinner {
+      width: 14px;
+      height: 14px;
+      border-width: 2px;
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -352,13 +382,21 @@
          100 - Bottom-right (overlays)
        ═══════════════════════════════════════════════════════════════ */
 
-    .corner-top-left {
+    .corner-top-left-stack {
       position: fixed;
       top: max(16px, env(safe-area-inset-top));
       left: max(16px, env(safe-area-inset-left));
       display: flex;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 8px;
       z-index: 300;
+    }
+
+    .corner-top-left {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .corner-top-right {
@@ -790,6 +828,10 @@
         gap: 6px;
       }
 
+      .corner-top-left-stack {
+        gap: 6px;
+      }
+
       .corner-bottom-left {
         gap: 6px;
       }
@@ -830,11 +872,17 @@
   <button class="nav-btn nav-next" id="nextBtn" data-visibility="hidden">›</button>
 
   <!-- Top-Left: Page Controls -->
-  <div class="corner-top-left" id="topLeft" data-visibility="hidden">
-    <button class="btn" id="quickSaveBtn">💾 Save</button>
-    <button class="btn" id="flagBtn">🚩 Flag</button>
-    <button class="btn" id="likeBtn">👍</button>
-    <button class="btn" id="dislikeBtn">👎</button>
+  <div class="corner-top-left-stack" id="topLeftStack">
+    <div class="corner-top-left" id="topLeft" data-visibility="hidden">
+      <button class="btn" id="quickSaveBtn">💾 Save</button>
+      <button class="btn" id="flagBtn">🚩 Flag</button>
+      <button class="btn" id="likeBtn">👍</button>
+      <button class="btn" id="dislikeBtn">👎</button>
+    </div>
+    <div class="transition-indicator" id="transitionIndicator" data-visibility="visible" aria-hidden="true">
+      <div class="spinner"></div>
+      <span>Loading next image</span>
+    </div>
   </div>
 
   <!-- Top-Right: Navigation -->
@@ -899,7 +947,7 @@
 
     const VIEWER_SETTINGS_SECTIONS = {
       'Top Right': ['position_badge', 'gallery_settings_button', 'library_link'],
-      'Top Left': ['action_buttons'],
+      'Top Left': ['action_buttons', 'transition_indicator'],
       'Bottom Right': ['title_overlay', 'data_overlay'],
       'Bottom Left': ['execution_block'],
       'Navigation': ['nav_buttons'],
@@ -920,6 +968,13 @@
         default: 'hidden',
         canTurnOff: true,
         label: 'Action Buttons'
+      },
+      transition_indicator: {
+        type: 'visibility',
+        selector: '#transitionIndicator',
+        default: 'visible',
+        canTurnOff: true,
+        label: 'Load Indicator'
       },
       position_badge: {
         type: 'visibility',
@@ -1005,13 +1060,158 @@
     // Gallery Viewer
     // ─────────────────────────────────────────────────────────────
 
+    function encodePathSegments(path) {
+      return String(path)
+        .split('/')
+        .map(segment => encodeURIComponent(segment))
+        .join('/');
+    }
+
+    function buildImageUrl(filename) {
+      return `/images/${encodePathSegments(filename)}`;
+    }
+
     const gallery = {
       images: [],
+      totalImages: 0,
       currentIndex: 0,
+      windowStartIndex: 0,
+      olderCursor: null,
+      newerCursor: null,
       controlsVisible: false,
       autoHideTimer: null,
       preloadedImages: new Set(),  // Track preloaded image URLs
+      activeImageRequest: 0,
+      loadingOlderPage: false,
+      loadingNewerPage: false,
+      PAGE_SIZE: 50,
+      WINDOW_BEFORE: 25,
+      WINDOW_AFTER: 25,
       PRELOAD_RADIUS: 3,           // Preload ±3 images around current
+
+      getImageKey(image) {
+        return image?.id || image?.filename || null;
+      },
+
+      getLoadedImageKeys() {
+        return new Set(
+          this.images
+            .map((image) => this.getImageKey(image))
+            .filter(Boolean)
+        );
+      },
+
+      uniqueImages(images, existingKeys = new Set()) {
+        const unique = [];
+
+        images.forEach((image) => {
+          const key = this.getImageKey(image);
+          if (!key || existingKeys.has(key)) return;
+          existingKeys.add(key);
+          unique.push(image);
+        });
+
+        return unique;
+      },
+
+      updateWindowPageInfo(page = {}) {
+        this.olderCursor = page.has_older ? page.older_cursor : null;
+        this.newerCursor = page.has_newer ? page.newer_cursor : null;
+      },
+
+      showLoading(message = 'Loading...') {
+        const loadingState = document.getElementById('loadingState');
+        loadingState.querySelector('.state-text').textContent = message;
+        loadingState.classList.add('active');
+        document.getElementById('emptyState').classList.remove('active');
+        this.hideTransitionIndicator();
+      },
+
+      showTransitionIndicator(message = 'Loading next image') {
+        const indicator = document.getElementById('transitionIndicator');
+        indicator.querySelector('span').textContent = message;
+        indicator.classList.add('active');
+      },
+
+      hideTransitionIndicator() {
+        document.getElementById('transitionIndicator').classList.remove('active');
+      },
+
+      applyWindowResponse(data) {
+        const images = this.uniqueImages(data.images || []);
+        this.images = images;
+        this.totalImages = data.total || images.length;
+        this.windowStartIndex = data.start_index || 0;
+        this.currentIndex = Math.max(0, Math.min(data.current_index || 0, Math.max(images.length - 1, 0)));
+        this.preloadedImages.clear();
+        this.updateWindowPageInfo(data.page || {});
+        return images.length;
+      },
+
+      async loadInitialPage() {
+        const data = await api.getImages({ limit: this.PAGE_SIZE });
+        this.images = this.uniqueImages(data.images || []);
+        this.totalImages = data.total || this.images.length;
+        this.windowStartIndex = 0;
+        this.currentIndex = 0;
+        this.preloadedImages.clear();
+        this.updateWindowPageInfo(data.page || {});
+        return this.images.length;
+      },
+
+      async loadOlderPage() {
+        if (!this.olderCursor || this.loadingOlderPage) return 0;
+
+        this.loadingOlderPage = true;
+        try {
+          const data = await api.getImages({
+            cursor: this.olderCursor,
+            direction: 'older',
+            limit: this.PAGE_SIZE,
+          });
+          const images = this.uniqueImages(data.images || [], this.getLoadedImageKeys());
+          this.images = [...this.images, ...images];
+          this.totalImages = data.total || this.totalImages;
+          this.olderCursor = data.page?.has_older ? data.page.older_cursor : null;
+          return images.length;
+        } catch (e) {
+          console.error('Failed to load older images:', e);
+          return 0;
+        } finally {
+          this.loadingOlderPage = false;
+          this.updateNavButtons();
+          this.updatePositionDisplay();
+        }
+      },
+
+      async loadNewerPage() {
+        if (!this.newerCursor || this.loadingNewerPage) return 0;
+
+        this.loadingNewerPage = true;
+        try {
+          const data = await api.getImages({
+            cursor: this.newerCursor,
+            direction: 'newer',
+            limit: this.PAGE_SIZE,
+          });
+          const images = this.uniqueImages(data.images || [], this.getLoadedImageKeys());
+          if (images.length > 0) {
+            this.images = [...images, ...this.images];
+            this.windowStartIndex = Math.max(0, this.windowStartIndex - images.length);
+            this.currentIndex += images.length;
+          }
+          this.totalImages = data.total || this.totalImages;
+          this.newerCursor = data.page?.has_newer ? data.page.newer_cursor : null;
+          return images.length;
+        } catch (e) {
+          console.error('Failed to load newer images:', e);
+          return 0;
+        } finally {
+          this.loadingNewerPage = false;
+          this.updateNavButtons();
+          this.updatePositionDisplay();
+        }
+      },
 
       async init() {
         // Initialize execution block (shared component)
@@ -1021,7 +1221,7 @@
         appState.connect();
 
         // Subscribe to state changes
-        appState.subscribe('image_added', () => this.onImageAdded());
+        appState.subscribe('image_added', (data) => this.onImageAdded(data));
         appState.subscribe('generation_started', () => this.onGenerationStarted());
         appState.subscribe('generation_progress', (d) => this.onProgress(d));
         appState.subscribe('generation_complete', () => this.onGenerationComplete());
@@ -1029,84 +1229,95 @@
 
         // Setup event listeners
         this.setupEvents();
-
-        // Load ALL image metadata
-        await this.loadAllImages();
+        this.showLoading();
 
         // Check for URL parameter
         const urlParams = new URLSearchParams(window.location.search);
         const requestedImage = urlParams.get('image');
 
-        if (requestedImage) {
-          window.history.replaceState({}, '', '/');
-          this.goToImage(requestedImage);
-        } else {
-          this.showImage(0);
-        }
-      },
-
-      async loadAllImages() {
         try {
-          const { images, total } = await api.getImages(0, 10000);
-          this.images = images;
-
-          if (images.length === 0) {
-            this.showEmpty();
+          if (requestedImage) {
+            window.history.replaceState({}, '', '/');
+            const data = await api.getImageWindow(requestedImage, this.WINDOW_BEFORE, this.WINDOW_AFTER);
+            this.applyWindowResponse(data);
+          } else {
+            await this.loadInitialPage();
           }
         } catch (e) {
-          console.error('Failed to load images:', e);
-          this.showEmpty();
-        }
-      },
+          console.error('Failed to load initial viewer window:', e);
+          if (!requestedImage) {
+            this.showEmpty();
+            return;
+          }
 
-      goToImage(filename) {
-        const index = this.images.findIndex(img => img.filename === filename);
-        if (index >= 0) {
-          this.showImage(index);
-        } else {
-          this.showImage(0);
+          try {
+            await this.loadInitialPage();
+          } catch (fallbackError) {
+            console.error('Failed to load initial viewer page:', fallbackError);
+            this.showEmpty();
+            return;
+          }
         }
+
+        if (this.images.length === 0) {
+          this.showEmpty();
+          return;
+        }
+
+        this.showImage(this.currentIndex);
       },
 
       showImage(index) {
         if (index < 0 || index >= this.images.length) return;
 
-        this.currentIndex = index;
         const img = document.getElementById('mainImage');
         const image = this.images[index];
         if (!image || !image.filename) return;
 
-        const imageUrl = `/images/${image.filename}`;
-
-        if (img.src.endsWith(image.filename)) {
-          return;
+        const hadVisibleImage = img.style.display !== 'none' && !!img.src;
+        const imageUrl = buildImageUrl(image.filename);
+        const requestId = ++this.activeImageRequest;
+        img.classList.add('loading');
+        if (!hadVisibleImage) {
+          this.showLoading();
+        } else {
+          this.showTransitionIndicator();
         }
 
         // Preload in background
         const preloader = new Image();
 
         preloader.onload = () => {
+          if (requestId !== this.activeImageRequest) return;
+          this.currentIndex = index;
           img.src = imageUrl;
+          img.alt = image.filename.split('/').pop();
           img.style.display = 'block';
+          img.classList.remove('loading');
+          document.getElementById('loadingState').classList.remove('active');
+          document.getElementById('emptyState').classList.remove('active');
+          this.hideTransitionIndicator();
+
+          this.updateNavButtons();
+          this.updatePositionDisplay();
+          this.updateFlagButton(image);
+          this.updateRatingButtons(image);
+          this.updateCharOverlay(image);
+          this.preloadAdjacent(index);
         };
 
         preloader.onerror = () => {
+          if (requestId !== this.activeImageRequest) return;
+          img.classList.remove('loading');
+          this.hideTransitionIndicator();
           console.error('Failed to load image:', imageUrl);
+          if (!hadVisibleImage) {
+            this.showLoading('Failed to load image');
+            img.style.display = 'none';
+          }
         };
 
         preloader.src = imageUrl;
-
-        document.getElementById('loadingState').classList.remove('active');
-        document.getElementById('emptyState').classList.remove('active');
-
-        this.updateNavButtons();
-        this.updatePositionDisplay();
-        this.updateFlagButton(image);
-        this.updateRatingButtons(image);
-        this.updateCharOverlay(image);
-
-        // Preload adjacent images for smooth navigation
-        this.preloadAdjacent(index);
       },
 
       preloadAdjacent(centerIndex) {
@@ -1120,7 +1331,7 @@
           const image = this.images[i];
           if (!image?.filename) continue;
 
-          const url = `/images/${image.filename}`;
+          const url = buildImageUrl(image.filename);
 
           // Skip if already preloaded
           if (this.preloadedImages.has(url)) continue;
@@ -1133,20 +1344,40 @@
       },
 
       showEmpty() {
+        this.activeImageRequest += 1;
         document.getElementById('loadingState').classList.remove('active');
         document.getElementById('emptyState').classList.add('active');
-        document.getElementById('mainImage').style.display = 'none';
+        const mainImage = document.getElementById('mainImage');
+        mainImage.style.display = 'none';
+        mainImage.classList.remove('loading');
+        this.hideTransitionIndicator();
+        this.updateNavButtons();
+        this.updatePositionDisplay();
       },
 
-      next() {
+      async next() {
         if (this.currentIndex < this.images.length - 1) {
+          this.showImage(this.currentIndex + 1);
+          this.resetAutoHide();
+          return;
+        }
+
+        const appended = await this.loadOlderPage();
+        if (appended > 0 && this.currentIndex < this.images.length - 1) {
           this.showImage(this.currentIndex + 1);
           this.resetAutoHide();
         }
       },
 
-      prev() {
+      async prev() {
         if (this.currentIndex > 0) {
+          this.showImage(this.currentIndex - 1);
+          this.resetAutoHide();
+          return;
+        }
+
+        const prepended = await this.loadNewerPage();
+        if (prepended > 0 && this.currentIndex > 0) {
           this.showImage(this.currentIndex - 1);
           this.resetAutoHide();
         }
@@ -1157,8 +1388,8 @@
         const nextBtn = document.getElementById('nextBtn');
         const prevZone = document.getElementById('navZonePrev');
         const nextZone = document.getElementById('navZoneNext');
-        const atStart = this.currentIndex === 0;
-        const atEnd = this.currentIndex >= this.images.length - 1;
+        const atStart = this.currentIndex === 0 && !this.newerCursor && !this.loadingNewerPage;
+        const atEnd = this.currentIndex >= this.images.length - 1 && !this.olderCursor && !this.loadingOlderPage;
 
         prevBtn.disabled = atStart;
         nextBtn.disabled = atEnd;
@@ -1379,14 +1610,36 @@
       // State Updates
       // ─────────────────────────────────────────────────────────────
 
-      onImageAdded() {
-        const newImage = appState.images[0];
-        if (newImage && (!this.images[0] || this.images[0].filename !== newImage.filename)) {
+      onImageAdded(data) {
+        const newImage = data?.image;
+        const imageKey = this.getImageKey(newImage);
+        if (!newImage || !imageKey) return;
+
+        const alreadyLoaded = this.images.some((image) => this.getImageKey(image) === imageKey);
+        if (alreadyLoaded) return;
+
+        this.totalImages += 1;
+
+        if (this.windowStartIndex === 0) {
+          const wasAtNewest = this.currentIndex === 0;
           this.images.unshift(newImage);
-          this.currentIndex++;
+          this.preloadedImages.clear();
+          this.newerCursor = null;
+
+          if (wasAtNewest) {
+            this.showImage(0);
+          } else {
+            this.currentIndex += 1;
+            this.updateNavButtons();
+            this.updatePositionDisplay();
+          }
+        } else {
+          this.windowStartIndex += 1;
+          this.newerCursor = this.images[0]?.cursor || this.newerCursor;
           this.updateNavButtons();
+          this.updatePositionDisplay();
         }
-        this.showImage(0);
+
         // Check if ComfyUI is still busy
         if (this.execBlock) this.execBlock.onImageReceived();
       },
@@ -1410,12 +1663,16 @@
       onBatchComplete() {
         document.getElementById('progressContainer').classList.remove('active');
         document.getElementById('progressBar').style.width = '0%';
-        this.loadAllImages();
       },
 
       updatePositionDisplay() {
         const badge = document.getElementById('positionBadge');
-        badge.textContent = `${this.currentIndex + 1} / ${this.images.length}`;
+        if (this.images.length === 0 || this.totalImages === 0) {
+          badge.textContent = '0 / 0';
+          return;
+        }
+
+        badge.textContent = `${this.windowStartIndex + this.currentIndex + 1} / ${this.totalImages}`;
       },
 
       // ─────────────────────────────────────────────────────────────

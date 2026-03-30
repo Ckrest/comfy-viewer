@@ -78,6 +78,7 @@ class StateManager:
         self._state = AppState()
         self._subscribers: list[Callable[[dict], None]] = []
         self._state_lock = threading.RLock()
+        self._image_feed_limit = 50
         self._initialized = True
 
         log.info("StateManager initialized")
@@ -163,7 +164,7 @@ class StateManager:
             return False
 
     def set_images(self, images: list[dict], total: Optional[int] = None):
-        """Update images list (typically from pagination)."""
+        """Replace the canonical websocket image feed."""
         with self._state_lock:
             self._state.images = images
             if total is not None:
@@ -173,11 +174,22 @@ class StateManager:
                 "total": self._state.images_total
             })
 
+    def _image_key(self, image: dict) -> tuple[Any, Any]:
+        """Get a stable identity key for an image payload."""
+        return image.get("id"), image.get("filename")
+
     def add_image(self, image: dict):
-        """Add a new image to the front of the list."""
+        """Add a new image to the front of the canonical websocket feed."""
         with self._state_lock:
-            self._state.images.insert(0, image)
-            self._state.images_total += 1
+            image_key = self._image_key(image)
+            had_image = any(self._image_key(existing) == image_key for existing in self._state.images)
+            self._state.images = [image] + [
+                existing for existing in self._state.images
+                if self._image_key(existing) != image_key
+            ]
+            self._state.images = self._state.images[:self._image_feed_limit]
+            if not had_image:
+                self._state.images_total += 1
             self._broadcast("image_added", {"image": image})
 
     # ─────────────────────────────────────────────────────────────

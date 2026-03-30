@@ -12,7 +12,9 @@ import logging
 import os
 import random
 import uuid
+import base64
 from pathlib import Path
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, render_template, send_from_directory, Response
 
@@ -131,6 +133,100 @@ def map_display_fields(reg: dict) -> dict:
 def map_display_fields_list(registrations: list[dict]) -> list[dict]:
     """Apply display field mapping to a list of registrations."""
     return [map_display_fields(reg) for reg in registrations]
+
+
+IMAGE_FEED_LIMIT = 50
+DEFAULT_IMAGE_PAGE_LIMIT = 50
+MAX_IMAGE_PAGE_LIMIT = 200
+VIEWER_WINDOW_BEFORE = 25
+VIEWER_WINDOW_AFTER = 25
+
+
+def clamp_int(value: object, default: int, minimum: int, maximum: int) -> int:
+    """Parse and clamp an integer query value."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(maximum, parsed))
+
+
+def encode_image_cursor(cursor: tuple[float, str] | None) -> str | None:
+    """Encode a pagination cursor for transport."""
+    if cursor is None:
+        return None
+    created_at, registration_id = cursor
+    payload = json.dumps([created_at, registration_id], separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii")
+
+
+def decode_image_cursor(value: str | None) -> tuple[float, str] | None:
+    """Decode a pagination cursor from transport form."""
+    if not value:
+        return None
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        created_at, registration_id = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+        return float(created_at), str(registration_id)
+    except Exception:
+        return None
+
+
+def registration_to_image_payload(reg: dict, extra: dict | None = None) -> dict:
+    """Normalize a registration into the shared frontend image payload."""
+    mapped = map_display_fields(dict(reg))
+    payload = {
+        "id": mapped.get("id"),
+        "filename": mapped.get("filename") or mapped.get("image_path"),
+        "image_path": mapped.get("image_path"),
+        "created_at": mapped.get("created_at"),
+        "modified": mapped.get("modified"),
+        "source": mapped.get("source"),
+        "flagged": bool(mapped.get("flagged", False)),
+        "rating": mapped.get("rating", 0),
+        "char_str": mapped.get("char_str"),
+        "title": mapped.get("title"),
+        "data": mapped.get("data"),
+        "cursor": encode_image_cursor((mapped.get("created_at"), mapped.get("id"))),
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def registrations_to_payloads(registrations: list[dict]) -> list[dict]:
+    """Normalize a list of registrations into shared frontend payloads."""
+    return [registration_to_image_payload(reg) for reg in registrations]
+
+
+def page_info_to_response(page_info: dict) -> dict:
+    """Encode store page info for JSON responses."""
+    return {
+        "direction": page_info.get("direction", "older"),
+        "has_older": bool(page_info.get("has_older")),
+        "has_newer": bool(page_info.get("has_newer")),
+        "older_cursor": encode_image_cursor(page_info.get("older_cursor")),
+        "newer_cursor": encode_image_cursor(page_info.get("newer_cursor")),
+    }
+
+
+def refresh_state_image_feed(limit: int = IMAGE_FEED_LIMIT) -> tuple[list[dict], int]:
+    """Refresh the canonical newest-first websocket image feed."""
+    store = get_store()
+    registrations, total, _page = store.get_page(limit=limit)
+    payloads = registrations_to_payloads(registrations)
+    state.set_images(payloads, total)
+    return payloads, total
+
+
+def apply_media_cache_headers(response: Response, local_path: Path | None = None) -> Response:
+    """Apply cache headers for image and thumbnail responses."""
+    response.cache_control.public = True
+    response.cache_control.max_age = 3600
+    response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
+    if local_path and local_path.exists():
+        response.last_modified = datetime.fromtimestamp(local_path.stat().st_mtime, tz=timezone.utc)
+    return response
 
 
 # ─────────────────────────────────────────────────────────────
@@ -254,6 +350,27 @@ def library():
     return render_template("library.html")
 
 
+@app.route("/manifest.webmanifest")
+def web_app_manifest():
+    """Serve the web app manifest for Home Screen / standalone installs."""
+    manifest = {
+        "id": "/",
+        "name": "Comfy Viewer",
+        "short_name": "Comfy Viewer",
+        "description": "ComfyUI image viewer and library",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": "#0d0d0d",
+        "theme_color": "#0d0d0d",
+    }
+    return Response(
+        json.dumps(manifest, separators=(",", ":")),
+        mimetype="application/manifest+json",
+    )
+
+
 @app.route("/settings")
 def settings_redirect():
     """Redirect old /settings URL to /library for backwards compatibility."""
@@ -285,7 +402,9 @@ def serve_image(filename):
         for chunk in file_service.stream_image(filename):
             yield chunk
 
-    return Response(generate(), mimetype=content_type)
+    local_path = file_service.get_image_path(filename)
+    response = Response(generate(), mimetype=content_type)
+    return apply_media_cache_headers(response, local_path=local_path)
 
 
 @app.route("/thumbnails/<path:filename>")
@@ -304,26 +423,39 @@ def serve_thumbnail(filename):
 
     size_preset = normalize_size_preset(request.args.get("size"))
     thumb_size_px = get_render_size_px(size_preset)
+    supports_webp = "image/webp" in request.headers.get("Accept", "")
 
     # For local backend, use the fast path with direct file access
     local_path = file_service.get_image_path(filename)
 
     if local_path:
+        if not supports_webp:
+            response = Response(
+                file_service.stream_image(filename),
+                mimetype=file_service.get_content_type(filename),
+            )
+            return apply_media_cache_headers(response, local_path=local_path)
+
         # Local mode: direct thumbnail generation from file path
         thumb_path = get_thumbnail(local_path, max_size_px=thumb_size_px)
         if thumb_path and thumb_path.exists():
-            return send_from_directory(thumb_path.parent, thumb_path.name)
+            response = send_from_directory(thumb_path.parent, thumb_path.name)
+            return apply_media_cache_headers(response, local_path=thumb_path)
         else:
             # Fallback to streaming original
-            return Response(
+            response = Response(
                 file_service.stream_image(filename),
                 mimetype=file_service.get_content_type(filename)
             )
+            return apply_media_cache_headers(response, local_path=local_path)
     else:
         # Remote mode: get image bytes and generate thumbnail from memory
         image_data = file_service.get_image(filename)
         if image_data is None:
             return "Failed to fetch image", 500
+
+        if not supports_webp:
+            return Response(image_data, mimetype=file_service.get_content_type(filename))
 
         thumb_data = get_thumbnail_for_bytes(filename, image_data, max_size_px=thumb_size_px)
         if thumb_data:
@@ -460,9 +592,8 @@ def api_registration_cleanup():
     result = store.cleanup_orphaned(OUTPUT_DIR, dry_run=dry_run)
 
     if result["deleted"] > 0:
-        # Refresh the image list for connected clients
-        registrations, total = store.get_all(0, 50)
-        state.set_images(registrations, total)
+        # Refresh the canonical websocket feed for connected clients
+        refresh_state_image_feed()
 
     return jsonify(result)
 
@@ -804,18 +935,20 @@ def api_template_graph(template):
 @app.route("/api/images")
 def api_images():
     """Get paginated list of registrations (images with associated data)."""
-    offset = int(request.args.get("offset", 0))
-    limit = int(request.args.get("limit", 50))
+    limit = clamp_int(request.args.get("limit"), DEFAULT_IMAGE_PAGE_LIMIT, 1, MAX_IMAGE_PAGE_LIMIT)
+    direction = "newer" if request.args.get("direction") == "newer" else "older"
+    cursor = decode_image_cursor(request.args.get("cursor"))
 
-    # Use registration store for unified timeline
     store = get_store()
-    registrations, total = store.get_all(offset, limit)
-
-    # Apply display field mapping (title/data slots from config)
-    registrations = map_display_fields_list(registrations)
-
-    state.set_images(registrations, total)
-    return jsonify({"images": registrations, "total": total})
+    registrations, total, page_info = store.get_page(limit=limit, cursor=cursor, direction=direction)
+    return jsonify({
+        "images": registrations_to_payloads(registrations),
+        "total": total,
+        "page": {
+            "limit": limit,
+            **page_info_to_response(page_info),
+        },
+    })
 
 
 @app.route("/api/images/<path:filename>/registration")
@@ -915,39 +1048,46 @@ def api_disliked_images():
     return jsonify({"images": registrations, "total": len(registrations)})
 
 
-@app.route("/api/images/find/<filename>")
+@app.route("/api/images/find/<path:filename>")
 def api_find_image(filename):
     """
     Find an image's position in the sorted list.
 
-    Returns the offset where this image appears, useful for
+    Returns the absolute index where this image appears, useful for
     jumping directly to a specific image in the gallery.
     """
-    if not OUTPUT_DIR.exists():
-        return jsonify({"error": "Output directory not found"}), 404
+    store = get_store()
+    result = store.find_image_position(filename)
+    if not result:
+        return jsonify({"error": "Image not found"}), 404
 
-    # Get all images sorted by modification time (newest first)
-    all_images = []
-    for p in OUTPUT_DIR.iterdir():
-        if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
-            stat = p.stat()
-            all_images.append({
-                "filename": p.name,
-                "modified": int(stat.st_mtime),
-            })
+    reg = result["registration"]
+    return jsonify({
+        "filename": reg["filename"],
+        "index": result["index"],
+        "total": result["total"],
+        "image": registration_to_image_payload(reg),
+    })
 
-    all_images.sort(key=lambda x: x["modified"], reverse=True)
 
-    # Find the index
-    for i, img in enumerate(all_images):
-        if img["filename"] == filename:
-            return jsonify({
-                "filename": filename,
-                "index": i,
-                "total": len(all_images)
-            })
+@app.route("/api/images/window/<path:filename>")
+def api_image_window(filename):
+    """Get a centered window of images around a specific image."""
+    before = clamp_int(request.args.get("before"), VIEWER_WINDOW_BEFORE, 0, MAX_IMAGE_PAGE_LIMIT)
+    after = clamp_int(request.args.get("after"), VIEWER_WINDOW_AFTER, 0, MAX_IMAGE_PAGE_LIMIT)
 
-    return jsonify({"error": "Image not found"}), 404
+    store = get_store()
+    result = store.get_window_for_image(filename, before=before, after=after)
+    if not result:
+        return jsonify({"error": "Image not found"}), 404
+
+    return jsonify({
+        "images": registrations_to_payloads(result["registrations"]),
+        "total": result["total"],
+        "start_index": result["start_index"],
+        "current_index": result["current_index"],
+        "page": page_info_to_response(result["page"]),
+    })
 
 
 @app.route("/api/generate", methods=["POST"])
@@ -1392,18 +1532,10 @@ def api_conduit_event():
     if reg:
         # Notify connected WebSocket clients about new image
         if filepath.exists():
-            # Apply display field mapping for title/data slots
-            mapped_reg = map_display_fields(reg)
-            state.add_image({
-                "filename": relative_path,
-                "size": filepath.stat().st_size,
-                "modified": int(reg["created_at"]),
-                "id": reg["id"],
-                "char_str": reg.get("char_str"),
-                "title": mapped_reg.get("title"),
-                "data": mapped_reg.get("data"),
+            mapped_reg = map_display_fields(dict(reg))
+            state.add_image(registration_to_image_payload(reg, extra={
                 "tag_name": selected_tag,
-            })
+            }))
             image_count += 1
             log.info(f"Conduit: registered {relative_path} "
                      f"(tag={selected_tag}, title={mapped_reg.get('title', {}).get('value')})")
@@ -1462,18 +1594,8 @@ def on_new_image_from_service(filename: str, image_info):
     )
 
     if reg:
-        # Apply display field mapping for title/data slots
-        mapped_reg = map_display_fields(reg)
-        # Add to state (this broadcasts to all WebSocket clients)
-        state.add_image({
-            "filename": filename,
-            "size": image_info.size,
-            "modified": int(reg["created_at"]),
-            "id": reg["id"],
-            "char_str": reg.get("char_str"),
-            "title": mapped_reg.get("title"),
-            "data": mapped_reg.get("data"),
-        })
+        # Add to the canonical websocket feed (this broadcasts to all clients)
+        state.add_image(registration_to_image_payload(reg))
     else:
         log.debug(f"Image already registered: {filename}")
 
@@ -1491,9 +1613,8 @@ def on_deleted_image_from_service(filename: str):
     deleted = store.delete_by_image(filename)
 
     if deleted:
-        # Notify connected clients by refreshing the image list
-        registrations, total = store.get_all(0, 50)
-        state.set_images(registrations, total)
+        # Notify connected clients by refreshing the canonical image feed
+        refresh_state_image_feed()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1576,9 +1697,8 @@ def initialize():
         if new_images > 0:
             log.info(f"Registered {new_images} new images from disk scan")
 
-    # Load registrations for initial state
-    registrations, total = store.get_all(0, 50)
-    state.set_images(registrations, total)
+    # Load the canonical websocket image feed
+    _feed, total = refresh_state_image_feed()
 
     # Check ComfyUI connection
     comfy.health_check()

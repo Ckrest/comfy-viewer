@@ -76,8 +76,17 @@ const api = {
   /**
    * Get paginated list of images.
    */
-  async getImages(offset = 0, limit = 50) {
-    const res = await fetch(this.url(`/api/images?offset=${offset}&limit=${limit}`));
+  async getImages({ cursor = null, direction = "older", limit = 50 } = {}) {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      direction: direction === "newer" ? "newer" : "older",
+    });
+    if (cursor) {
+      params.set("cursor", cursor);
+    }
+
+    const res = await fetch(this.url(`/api/images?${params.toString()}`));
+    if (!res.ok) throw new Error("Failed to load images");
     return res.json();
   },
 
@@ -87,6 +96,21 @@ const api = {
    */
   async findImage(filename) {
     const res = await fetch(this.url(`/api/images/find/${encodeURIComponent(filename)}`));
+    if (!res.ok) throw new Error("Image not found");
+    return res.json();
+  },
+
+  /**
+   * Get a centered image window around a specific image.
+   */
+  async getImageWindow(filename, before = 25, after = 25) {
+    const params = new URLSearchParams({
+      before: String(before),
+      after: String(after),
+    });
+    const res = await fetch(this.url(
+      `/api/images/window/${encodeURIComponent(filename)}?${params.toString()}`
+    ));
     if (!res.ok) throw new Error("Image not found");
     return res.json();
   },

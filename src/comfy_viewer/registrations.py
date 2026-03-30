@@ -114,6 +114,7 @@ class RegistrationStore:
 
     _instance = None
     _lock = threading.Lock()
+    IMAGE_ORDER_SQL = "created_at DESC, id DESC"
 
     def __new__(cls):
         if cls._instance is None:
@@ -165,6 +166,9 @@ class RegistrationStore:
                     -- Index for fast timeline queries
                     CREATE INDEX IF NOT EXISTS idx_reg_created
                         ON registrations(created_at DESC);
+
+                    CREATE INDEX IF NOT EXISTS idx_reg_created_id
+                        ON registrations(created_at DESC, id DESC);
 
                     -- Index for flagged items
                     CREATE INDEX IF NOT EXISTS idx_reg_flagged
@@ -341,12 +345,244 @@ class RegistrationStore:
                 # Get paginated results
                 rows = conn.execute("""
                     SELECT * FROM registrations
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, id DESC
                     LIMIT ? OFFSET ?
                 """, (limit, offset)).fetchall()
 
                 registrations = [self._row_to_dict(row) for row in rows]
                 return registrations, total
+            finally:
+                conn.close()
+
+    def _has_older(
+        self,
+        conn: sqlite3.Connection,
+        created_at: float,
+        registration_id: str,
+    ) -> bool:
+        row = conn.execute(
+            """
+            SELECT 1 FROM registrations
+            WHERE (created_at < ?)
+               OR (created_at = ? AND id < ?)
+            LIMIT 1
+            """,
+            (created_at, created_at, registration_id),
+        ).fetchone()
+        return row is not None
+
+    def _has_newer(
+        self,
+        conn: sqlite3.Connection,
+        created_at: float,
+        registration_id: str,
+    ) -> bool:
+        row = conn.execute(
+            """
+            SELECT 1 FROM registrations
+            WHERE (created_at > ?)
+               OR (created_at = ? AND id > ?)
+            LIMIT 1
+            """,
+            (created_at, created_at, registration_id),
+        ).fetchone()
+        return row is not None
+
+    def get_page(
+        self,
+        limit: int = 50,
+        cursor: Optional[tuple[float, str]] = None,
+        direction: str = "older",
+    ) -> tuple[list[dict], int, dict]:
+        """
+        Get a stable page of registrations in canonical newest-first order.
+
+        Args:
+            limit: Maximum number of rows to return.
+            cursor: Tuple of (created_at, id) used as the paging anchor.
+            direction: "older" for rows after the cursor, "newer" for rows before it.
+
+        Returns:
+            (registrations, total, page_info)
+        """
+        direction = "newer" if direction == "newer" else "older"
+
+        with self._db_lock:
+            conn = self._get_conn()
+            try:
+                total = conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0]
+
+                params: list[object] = []
+                where_sql = ""
+                order_sql = self.IMAGE_ORDER_SQL
+
+                if cursor is not None:
+                    cursor_created_at, cursor_id = cursor
+                    if direction == "older":
+                        where_sql = """
+                            WHERE (created_at < ?)
+                               OR (created_at = ? AND id < ?)
+                        """
+                        params.extend([cursor_created_at, cursor_created_at, cursor_id])
+                    else:
+                        where_sql = """
+                            WHERE (created_at > ?)
+                               OR (created_at = ? AND id > ?)
+                        """
+                        params.extend([cursor_created_at, cursor_created_at, cursor_id])
+                        order_sql = "created_at ASC, id ASC"
+
+                rows = conn.execute(
+                    f"""
+                    SELECT * FROM registrations
+                    {where_sql}
+                    ORDER BY {order_sql}
+                    LIMIT ?
+                    """,
+                    (*params, limit),
+                ).fetchall()
+
+                if direction == "newer":
+                    rows = list(reversed(rows))
+
+                registrations = [self._row_to_dict(row) for row in rows]
+
+                if not rows:
+                    return registrations, total, {
+                        "direction": direction,
+                        "has_older": False,
+                        "has_newer": False,
+                        "older_cursor": None,
+                        "newer_cursor": None,
+                    }
+
+                first = rows[0]
+                last = rows[-1]
+                has_newer = self._has_newer(conn, first["created_at"], first["id"])
+                has_older = self._has_older(conn, last["created_at"], last["id"])
+
+                return registrations, total, {
+                    "direction": direction,
+                    "has_older": has_older,
+                    "has_newer": has_newer,
+                    "older_cursor": (last["created_at"], last["id"]) if has_older else None,
+                    "newer_cursor": (first["created_at"], first["id"]) if has_newer else None,
+                }
+            finally:
+                conn.close()
+
+    def find_image_position(self, image_path: str) -> Optional[dict]:
+        """
+        Find an image in canonical newest-first order.
+
+        Returns:
+            Dict with image metadata, absolute index, and total count, or None.
+        """
+        with self._db_lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    "SELECT * FROM registrations WHERE image_path = ?",
+                    (image_path,),
+                ).fetchone()
+                if not row:
+                    return None
+
+                total = conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0]
+                index = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM registrations
+                    WHERE (created_at > ?)
+                       OR (created_at = ? AND id > ?)
+                    """,
+                    (row["created_at"], row["created_at"], row["id"]),
+                ).fetchone()[0]
+
+                return {
+                    "registration": self._row_to_dict(row),
+                    "index": index,
+                    "total": total,
+                }
+            finally:
+                conn.close()
+
+    def get_window_for_image(
+        self,
+        image_path: str,
+        before: int = 25,
+        after: int = 25,
+    ) -> Optional[dict]:
+        """
+        Get a contiguous canonical window centered on an image.
+
+        Returns:
+            Dict with registrations, total, start_index, current_index, and page_info, or None.
+        """
+        before = max(0, before)
+        after = max(0, after)
+
+        with self._db_lock:
+            conn = self._get_conn()
+            try:
+                target = conn.execute(
+                    "SELECT * FROM registrations WHERE image_path = ?",
+                    (image_path,),
+                ).fetchone()
+                if not target:
+                    return None
+
+                total = conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0]
+                target_index = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM registrations
+                    WHERE (created_at > ?)
+                       OR (created_at = ? AND id > ?)
+                    """,
+                    (target["created_at"], target["created_at"], target["id"]),
+                ).fetchone()[0]
+
+                newer_rows = conn.execute(
+                    """
+                    SELECT * FROM registrations
+                    WHERE (created_at > ?)
+                       OR (created_at = ? AND id > ?)
+                    ORDER BY created_at ASC, id ASC
+                    LIMIT ?
+                    """,
+                    (target["created_at"], target["created_at"], target["id"], before),
+                ).fetchall()
+                newer_rows = list(reversed(newer_rows))
+
+                older_rows = conn.execute(
+                    f"""
+                    SELECT * FROM registrations
+                    WHERE (created_at < ?)
+                       OR (created_at = ? AND id < ?)
+                    ORDER BY {self.IMAGE_ORDER_SQL}
+                    LIMIT ?
+                    """,
+                    (target["created_at"], target["created_at"], target["id"], after),
+                ).fetchall()
+
+                rows = list(newer_rows) + [target] + list(older_rows)
+                registrations = [self._row_to_dict(row) for row in rows]
+                first = rows[0]
+                last = rows[-1]
+                has_older = self._has_older(conn, last["created_at"], last["id"])
+                has_newer = self._has_newer(conn, first["created_at"], first["id"])
+
+                return {
+                    "registrations": registrations,
+                    "total": total,
+                    "start_index": max(0, target_index - len(newer_rows)),
+                    "current_index": len(newer_rows),
+                    "page": {
+                        "has_older": has_older,
+                        "has_newer": has_newer,
+                        "older_cursor": (last["created_at"], last["id"]) if has_older else None,
+                        "newer_cursor": (first["created_at"], first["id"]) if has_newer else None,
+                    },
+                }
             finally:
                 conn.close()
 
@@ -422,7 +658,7 @@ class RegistrationStore:
                 rows = conn.execute("""
                     SELECT * FROM registrations
                     WHERE flagged = 1
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, id DESC
                 """).fetchall()
                 return [self._row_to_dict(row) for row in rows]
             finally:
@@ -470,7 +706,7 @@ class RegistrationStore:
                 rows = conn.execute("""
                     SELECT * FROM registrations
                     WHERE rating = ?
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, id DESC
                 """, (rating,)).fetchall()
                 return [self._row_to_dict(row) for row in rows]
             finally:

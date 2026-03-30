@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="Comfy Viewer">
+  <meta name="apple-mobile-web-app-title" content="Comfy Viewer">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d0d0d">
   <title>ComfyUI Library</title>
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/static/css/execution-block.css">
   <style>
     /* ═══════════════════════════════════════════════════════════════
@@ -62,15 +69,20 @@
       box-sizing: border-box;
     }
 
-    body {
-      font-family: var(--font-sans);
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      height: 100vh;
+    html, body {
+      height: 100%;
       overflow: hidden;
+      background: var(--bg-primary);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      color: var(--text-primary);
+      position: fixed;
+      inset: 0;
       font-size: 14px;
       line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -79,7 +91,7 @@
 
     .app-layout {
       display: flex;
-      height: 100vh;
+      height: 100dvh;
     }
 
     /* Sidebar */
@@ -560,6 +572,10 @@
     }
 
     .gallery-item img.loaded {
+      opacity: 1;
+    }
+
+    .gallery-item img.load-error {
       opacity: 1;
     }
 
@@ -1257,8 +1273,19 @@
       return THUMBNAIL_SIZES[value] ? value : 'medium';
     }
 
+    function encodePathSegments(path) {
+      return String(path)
+        .split('/')
+        .map(segment => encodeURIComponent(segment))
+        .join('/');
+    }
+
+    function buildImageUrl(filename) {
+      return `/images/${encodePathSegments(filename)}`;
+    }
+
     function buildThumbnailUrl(filename, preset = getCurrentThumbnailPreset()) {
-      return `/thumbnails/${filename}?size=${encodeURIComponent(preset)}`;
+      return `/thumbnails/${encodePathSegments(filename)}?size=${encodeURIComponent(preset)}`;
     }
 
     // Apply Library-specific settings
@@ -1336,9 +1363,12 @@
       // Gallery state
       images: [],
       totalImages: 0,
-      offset: 0,
+      olderCursor: null,
       isLoading: false,
       hasMore: true,
+      galleryAbortController: null,
+      galleryRequestVersion: 0,
+      seenImageKeys: new Set(),
 
       // Execution block (shared component)
       execBlock: null,
@@ -1350,6 +1380,7 @@
       async init() {
         this.initExecutionBlock();
         this.setupEvents();
+        this.setupImageLoading();
         this.setupInfiniteScroll();
         this.setupKeyboardShortcuts();
         await Promise.all([
@@ -1439,6 +1470,72 @@
         if (scrollHeight <= clientHeight + 100 || scrollTop + clientHeight >= scrollHeight - 300) {
           this.loadMoreImages();
         }
+      },
+
+      setupImageLoading() {
+        const container = document.getElementById('galleryContainer');
+
+        if (typeof IntersectionObserver !== 'function') {
+          this.imageObserver = null;
+          return;
+        }
+
+        this.imageObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            this.loadGalleryImage(entry.target);
+            this.imageObserver.unobserve(entry.target);
+          });
+        }, {
+          root: container,
+          rootMargin: '400px 0px',
+          threshold: 0.01,
+        });
+      },
+
+      observeGalleryImage(imgEl) {
+        if (!imgEl?.dataset?.src) return;
+
+        if (!this.imageObserver) {
+          this.loadGalleryImage(imgEl);
+          return;
+        }
+
+        this.imageObserver.observe(imgEl);
+      },
+
+      loadGalleryImage(imgEl) {
+        const src = imgEl?.dataset?.src;
+        if (!src) return;
+
+        if (imgEl.dataset.requestedSrc === src || imgEl.dataset.loadedSrc === src) {
+          return;
+        }
+
+        imgEl.className = 'loading';
+        imgEl.dataset.requestedSrc = src;
+
+        imgEl.onload = () => {
+          imgEl.className = 'loaded';
+          imgEl.dataset.loadedSrc = src;
+          delete imgEl.dataset.requestedSrc;
+        };
+
+        imgEl.onerror = () => {
+          delete imgEl.dataset.requestedSrc;
+
+          const fallbackSrc = imgEl.dataset.fullImageSrc;
+          if (fallbackSrc && src !== fallbackSrc && imgEl.dataset.loadedSrc !== fallbackSrc) {
+            imgEl.dataset.fallbackActive = 'true';
+            imgEl.dataset.src = fallbackSrc;
+            this.loadGalleryImage(imgEl);
+            return;
+          }
+
+          imgEl.className = 'load-error';
+        };
+
+        imgEl.src = src;
       },
 
       // ─────────────────────────────────────────────────────────────
@@ -2046,12 +2143,60 @@
       // Gallery with Infinite Scroll
       // ─────────────────────────────────────────────────────────────
 
-      async loadGallery() {
+      getImageKey(image) {
+        return image?.id || image?.filename || null;
+      },
+
+      updateImageCount() {
+        document.getElementById('imageCount').textContent =
+          `${this.images.length} of ${this.totalImages}`;
+      },
+
+      clearGalleryEmptyState() {
+        document.querySelector('#galleryGrid .empty-state')?.remove();
+      },
+
+      renderGalleryEmptyState() {
+        const grid = document.getElementById('galleryGrid');
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-state-icon">📷</div>
+            <div class="empty-state-text">No images yet. Run a workflow to generate some!</div>
+          </div>
+        `;
+      },
+
+      resetGalleryState() {
+        this.galleryAbortController?.abort();
+        this.galleryAbortController = null;
+        this.galleryRequestVersion += 1;
         this.images = [];
-        this.offset = 0;
+        this.totalImages = 0;
+        this.olderCursor = null;
+        this.isLoading = false;
         this.hasMore = true;
+        this.seenImageKeys = new Set();
         document.getElementById('galleryGrid').innerHTML = '';
         document.getElementById('galleryEnd').style.display = 'none';
+        document.getElementById('galleryLoading').style.display = 'none';
+        this.updateImageCount();
+      },
+
+      dedupeIncomingImages(images) {
+        const uniqueImages = [];
+
+        images.forEach((image) => {
+          const key = this.getImageKey(image);
+          if (!key || this.seenImageKeys.has(key)) return;
+          this.seenImageKeys.add(key);
+          uniqueImages.push(image);
+        });
+
+        return uniqueImages;
+      },
+
+      async loadGallery() {
+        this.resetGalleryState();
         await this.loadMoreImages();
 
         // After initial load, check if we need more images to fill the viewport
@@ -2073,48 +2218,75 @@
         images.forEach((imgEl) => {
           const filename = imgEl.dataset.filename || imgEl.alt;
           if (!filename) return;
+
+          imgEl.dataset.fullImageSrc = buildImageUrl(filename);
+          if (imgEl.dataset.fallbackActive === 'true') return;
+
           const nextSrc = this.getThumbnailUrl(filename, preset);
-          const currentUrl = new URL(imgEl.src, window.location.origin);
-          const targetUrl = new URL(nextSrc, window.location.origin);
-          if (currentUrl.pathname === targetUrl.pathname && currentUrl.search === targetUrl.search) return;
-          imgEl.className = 'loading';
-          imgEl.onload = () => imgEl.className = 'loaded';
-          imgEl.src = nextSrc;
+          if (imgEl.dataset.src === nextSrc && imgEl.dataset.loadedSrc === nextSrc) return;
+
+          imgEl.dataset.src = nextSrc;
+          delete imgEl.dataset.loadedSrc;
+          delete imgEl.dataset.requestedSrc;
+
+          if (imgEl.currentSrc) {
+            this.loadGalleryImage(imgEl);
+          }
         });
       },
 
       async loadMoreImages() {
         if (this.isLoading || !this.hasMore) return;
 
+        const requestVersion = this.galleryRequestVersion;
+        const controller = new AbortController();
+        this.galleryAbortController = controller;
         this.isLoading = true;
         document.getElementById('galleryLoading').style.display = 'flex';
 
         try {
-          const res = await fetch(`/api/images?offset=${this.offset}&limit=${BATCH_SIZE}`);
+          const params = new URLSearchParams({
+            limit: String(BATCH_SIZE),
+            direction: 'older'
+          });
+          if (this.olderCursor) {
+            params.set('cursor', this.olderCursor);
+          }
+
+          const res = await fetch(`/api/images?${params.toString()}`, {
+            signal: controller.signal
+          });
+          if (!res.ok) {
+            throw new Error(`Failed to load images (${res.status})`);
+          }
+
           const data = await res.json();
+          if (requestVersion !== this.galleryRequestVersion) return;
 
-          const newImages = data.images || [];
+          const newImages = this.dedupeIncomingImages(data.images || []);
           this.totalImages = data.total || 0;
+          this.olderCursor = data.page?.older_cursor || null;
+          this.hasMore = Boolean(data.page?.has_older);
           this.images = [...this.images, ...newImages];
-          this.offset += newImages.length;
 
-          // Update count display
-          document.getElementById('imageCount').textContent =
-            `${this.images.length} of ${this.totalImages}`;
-
-          // Check if we have more
-          this.hasMore = newImages.length === BATCH_SIZE && this.offset < this.totalImages;
-
-          // Render new images
+          this.updateImageCount();
           this.appendImages(newImages);
 
           if (!this.hasMore) {
             document.getElementById('galleryEnd').style.display = 'block';
           }
-
+          if (this.images.length === 0 && !this.hasMore) {
+            this.renderGalleryEmptyState();
+          }
         } catch (e) {
+          if (e.name === 'AbortError') return;
           console.error('Failed to load images:', e);
         } finally {
+          if (this.galleryAbortController === controller) {
+            this.galleryAbortController = null;
+          }
+          if (requestVersion !== this.galleryRequestVersion) return;
+
           this.isLoading = false;
           document.getElementById('galleryLoading').style.display = 'none';
 
@@ -2127,18 +2299,14 @@
 
       appendImages(images) {
         const grid = document.getElementById('galleryGrid');
-
-        if (this.images.length === 0 && images.length === 0) {
-          grid.innerHTML = `
-            <div class="empty-state" style="grid-column: 1 / -1;">
-              <div class="empty-state-icon">📷</div>
-              <div class="empty-state-text">No images yet. Run a workflow to generate some!</div>
-            </div>
-          `;
+        if (images.length === 0) {
           return;
         }
 
+        this.clearGalleryEmptyState();
+
         const fragment = document.createDocumentFragment();
+        const pendingImages = [];
 
         images.forEach(img => {
           const item = document.createElement('div');
@@ -2147,11 +2315,11 @@
 
           const imgEl = document.createElement('img');
           imgEl.dataset.filename = img.filename;
-          imgEl.src = this.getThumbnailUrl(img.filename);
+          imgEl.dataset.src = this.getThumbnailUrl(img.filename);
+          imgEl.dataset.fullImageSrc = buildImageUrl(img.filename);
           imgEl.alt = img.filename;
-          imgEl.loading = 'lazy';
           imgEl.className = 'loading';
-          imgEl.onload = () => imgEl.className = 'loaded';
+          pendingImages.push(imgEl);
 
           const overlay = document.createElement('div');
           overlay.className = 'gallery-item-overlay';
@@ -2168,6 +2336,7 @@
         });
 
         grid.appendChild(fragment);
+        pendingImages.forEach((imgEl) => this.observeGalleryImage(imgEl));
       }
     };
 
@@ -2242,14 +2411,17 @@
 
     // Add prependImage method to app
     app.prependImage = function(imageData) {
-      // Add to beginning of images array
-      this.images.unshift(imageData);
-      this.totalImages++;
-      this.offset++;
+      const imageKey = this.getImageKey(imageData);
+      if (!imageKey || this.seenImageKeys.has(imageKey)) {
+        return;
+      }
 
-      // Update count display
-      document.getElementById('imageCount').textContent =
-        `${this.images.length} of ${this.totalImages}`;
+      this.seenImageKeys.add(imageKey);
+      this.images.unshift(imageData);
+      this.totalImages = Math.max(this.totalImages + 1, this.images.length);
+      this.updateImageCount();
+      this.clearGalleryEmptyState();
+      document.getElementById('galleryEnd').style.display = 'none';
 
       // Prepend to grid
       const grid = document.getElementById('galleryGrid');
@@ -2259,11 +2431,10 @@
 
       const imgEl = document.createElement('img');
       imgEl.dataset.filename = imageData.filename;
-      imgEl.src = app.getThumbnailUrl(imageData.filename);
+      imgEl.dataset.src = app.getThumbnailUrl(imageData.filename);
+      imgEl.dataset.fullImageSrc = buildImageUrl(imageData.filename);
       imgEl.alt = imageData.filename;
-      imgEl.loading = 'lazy';
       imgEl.className = 'loading';
-      imgEl.onload = () => imgEl.className = 'loaded';
 
       const overlay = document.createElement('div');
       overlay.className = 'gallery-item-overlay';
@@ -2282,6 +2453,8 @@
       } else {
         grid.appendChild(item);
       }
+
+      app.observeGalleryImage(imgEl);
     };
 
     // Load Socket.IO and connect
